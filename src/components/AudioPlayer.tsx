@@ -28,11 +28,12 @@ const AudioPlayer: React.FC<AudioPlayerProps> = ({
   const [volume, setVolume] = useState(0.7);
   const [isMuted, setIsMuted] = useState(false);
   const [isLoading, setIsLoading] = useState(false);
+  const [audioError, setAudioError] = useState(false);
 
   const audioRef = useRef<HTMLAudioElement | null>(null);
   const progressRef = useRef<HTMLDivElement>(null);
 
-  console.log('AudioPlayer rendered:', { audioUrl, isPlaying, currentTime });
+  console.log('AudioPlayer rendered:', { audioUrl, isPlaying, currentTime, audioError });
 
   useEffect(() => {
     const audio = audioRef.current;
@@ -48,10 +49,19 @@ const AudioPlayer: React.FC<AudioPlayerProps> = ({
 
     const handleLoadStart = () => {
       setIsLoading(true);
+      setAudioError(false);
     };
 
     const handleCanPlay = () => {
       setIsLoading(false);
+      setAudioError(false);
+    };
+
+    const handleError = (e: Event) => {
+      console.error('Audio error:', e);
+      setIsLoading(false);
+      setAudioError(true);
+      setIsPlaying(false);
     };
 
     const handleEnded = () => {
@@ -64,6 +74,7 @@ const AudioPlayer: React.FC<AudioPlayerProps> = ({
     audio.addEventListener('durationchange', handleDurationChange);
     audio.addEventListener('loadstart', handleLoadStart);
     audio.addEventListener('canplay', handleCanPlay);
+    audio.addEventListener('error', handleError);
     audio.addEventListener('ended', handleEnded);
 
     return () => {
@@ -71,6 +82,7 @@ const AudioPlayer: React.FC<AudioPlayerProps> = ({
       audio.removeEventListener('durationchange', handleDurationChange);
       audio.removeEventListener('loadstart', handleLoadStart);
       audio.removeEventListener('canplay', handleCanPlay);
+      audio.removeEventListener('error', handleError);
       audio.removeEventListener('ended', handleEnded);
     };
   }, [onEnded]);
@@ -82,7 +94,10 @@ const AudioPlayer: React.FC<AudioPlayerProps> = ({
   }, [volume, isMuted]);
 
   const togglePlay = async () => {
-    if (!audioRef.current || !audioUrl) return;
+    if (!audioRef.current || !audioUrl || audioError) {
+      console.log('Cannot play: no audio element, URL, or error state');
+      return;
+    }
 
     try {
       if (isPlaying) {
@@ -90,17 +105,22 @@ const AudioPlayer: React.FC<AudioPlayerProps> = ({
         setIsPlaying(false);
         onPause?.();
       } else {
-        await audioRef.current.play();
-        setIsPlaying(true);
-        onPlay?.();
+        const playPromise = audioRef.current.play();
+        if (playPromise !== undefined) {
+          await playPromise;
+          setIsPlaying(true);
+          onPlay?.();
+        }
       }
     } catch (error) {
       console.error('Audio playback error:', error);
+      setAudioError(true);
+      setIsPlaying(false);
     }
   };
 
   const handleProgressClick = (e: React.MouseEvent<HTMLDivElement>) => {
-    if (!audioRef.current || !progressRef.current) return;
+    if (!audioRef.current || !progressRef.current || audioError) return;
 
     const rect = progressRef.current.getBoundingClientRect();
     const percent = (e.clientX - rect.left) / rect.width;
@@ -111,7 +131,7 @@ const AudioPlayer: React.FC<AudioPlayerProps> = ({
   };
 
   const skip = (seconds: number) => {
-    if (!audioRef.current) return;
+    if (!audioRef.current || audioError) return;
     
     const newTime = Math.max(0, Math.min(totalDuration, currentTime + seconds));
     audioRef.current.currentTime = newTime;
@@ -123,11 +143,13 @@ const AudioPlayer: React.FC<AudioPlayerProps> = ({
   };
 
   const handleDownload = () => {
-    if (audioUrl) {
+    if (audioUrl && !audioError) {
       const a = document.createElement('a');
       a.href = audioUrl;
       a.download = `${title.replace(/\s+/g, '_')}.wav`;
+      document.body.appendChild(a);
       a.click();
+      document.body.removeChild(a);
     }
   };
 
@@ -147,6 +169,17 @@ const AudioPlayer: React.FC<AudioPlayerProps> = ({
     opacity: (i / 60 * 100) <= progressPercent ? 1 : 0.3
   }));
 
+  if (audioError) {
+    return (
+      <div className={`bg-black/20 rounded-lg p-4 ${className}`}>
+        <div className="text-center text-red-400">
+          <p>Unable to load audio</p>
+          <p className="text-sm text-muted-foreground mt-1">Please try a different audio source</p>
+        </div>
+      </div>
+    );
+  }
+
   return (
     <div className={`bg-black/20 rounded-lg p-4 space-y-4 ${className}`}>
       {/* Audio Element */}
@@ -155,6 +188,7 @@ const AudioPlayer: React.FC<AudioPlayerProps> = ({
           ref={audioRef}
           src={audioUrl}
           preload="metadata"
+          crossOrigin="anonymous"
         />
       )}
 
@@ -178,7 +212,7 @@ const AudioPlayer: React.FC<AudioPlayerProps> = ({
         {/* Skip Controls */}
         <button
           onClick={() => skip(-10)}
-          disabled={!audioUrl}
+          disabled={!audioUrl || audioError}
           className="p-2 hover:bg-white/10 rounded-lg transition-colors disabled:opacity-50"
         >
           <SkipBack className="w-4 h-4" />
@@ -186,7 +220,7 @@ const AudioPlayer: React.FC<AudioPlayerProps> = ({
 
         <button
           onClick={() => skip(10)}
-          disabled={!audioUrl}
+          disabled={!audioUrl || audioError}
           className="p-2 hover:bg-white/10 rounded-lg transition-colors disabled:opacity-50"
         >
           <SkipForward className="w-4 h-4" />
@@ -228,7 +262,7 @@ const AudioPlayer: React.FC<AudioPlayerProps> = ({
         {/* Download Button */}
         <button
           onClick={handleDownload}
-          disabled={!audioUrl}
+          disabled={!audioUrl || audioError}
           className="p-2 hover:bg-white/10 rounded-lg transition-colors disabled:opacity-50"
         >
           <Download className="w-4 h-4" />

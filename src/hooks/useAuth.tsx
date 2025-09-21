@@ -46,12 +46,53 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
     try {
       console.log('Fetching subscription for user:', userEmail, userId);
       
-      // Check if user is admin
+      // Check if user is admin first
       const isAdminUser = adminEmails.includes(userEmail);
       
       if (isAdminUser) {
         console.log('Admin user detected:', userEmail);
-        // Admin users get studio access regardless of subscription
+        // For admin users, ensure they have studio subscription in database
+        const { data: existingSub, error: fetchError } = await supabase
+          .from('user_subscriptions')
+          .select('*')
+          .eq('user_id', userId)
+          .maybeSingle();
+
+        if (fetchError && fetchError.code !== 'PGRST116') {
+          console.error('Error fetching admin subscription:', fetchError);
+        }
+
+        // Create or update admin subscription to studio tier
+        if (!existingSub) {
+          const { error: insertError } = await supabase
+            .from('user_subscriptions')
+            .insert({
+              user_id: userId,
+              subscription_tier: 'studio',
+              status: 'active'
+            });
+
+          if (insertError) {
+            console.error('Error creating admin subscription:', insertError);
+          } else {
+            console.log('Created studio subscription for admin');
+          }
+        } else if (existingSub.subscription_tier !== 'studio') {
+          const { error: updateError } = await supabase
+            .from('user_subscriptions')
+            .update({ 
+              subscription_tier: 'studio',
+              status: 'active'
+            })
+            .eq('user_id', userId);
+
+          if (updateError) {
+            console.error('Error updating admin subscription:', updateError);
+          } else {
+            console.log('Updated admin to studio subscription');
+          }
+        }
+
         return {
           subscription_tier: 'studio',
           status: 'active',
@@ -59,6 +100,7 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
         } as UserSubscription;
       }
       
+      // For non-admin users, fetch their actual subscription
       const { data, error } = await supabase
         .from('user_subscriptions')
         .select('subscription_tier, status, expires_at')
@@ -67,20 +109,17 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
 
       if (error && error.code !== 'PGRST116') {
         console.error('Error fetching subscription:', error);
-        return { subscription_tier: 'free', status: 'active' } as UserSubscription;
+        return { subscription_tier: 'free', status: 'active', is_admin: false } as UserSubscription;
       }
 
       if (!data) {
         console.log('No subscription found, creating default subscription for:', userEmail);
         
-        // For admin users, create studio subscription
-        const defaultTier = isAdminUser ? 'studio' : 'free';
-        
         const { data: newSub, error: insertError } = await supabase
           .from('user_subscriptions')
           .insert({
             user_id: userId,
-            subscription_tier: defaultTier,
+            subscription_tier: 'free',
             status: 'active'
           })
           .select('subscription_tier, status, expires_at')
@@ -88,25 +127,15 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
 
         if (insertError) {
           console.error('Error creating subscription:', insertError);
-          return { 
-            subscription_tier: defaultTier, 
-            status: 'active',
-            is_admin: isAdminUser
-          } as UserSubscription;
+          return { subscription_tier: 'free', status: 'active', is_admin: false } as UserSubscription;
         }
         
         console.log('Created subscription:', newSub);
-        return { 
-          ...newSub, 
-          is_admin: isAdminUser 
-        };
+        return { ...newSub, is_admin: false };
       }
 
       console.log('Fetched subscription data:', data);
-      return { 
-        ...data, 
-        is_admin: isAdminUser 
-      };
+      return { ...data, is_admin: false };
     } catch (error) {
       console.error('Error in fetchUserSubscription:', error);
       const isAdminUser = adminEmails.includes(userEmail);
@@ -125,10 +154,9 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
       try {
         console.log('Initializing authentication...');
         
-        // Get initial session with timeout
         const sessionPromise = supabase.auth.getSession();
         const timeoutPromise = new Promise((_, reject) => 
-          setTimeout(() => reject(new Error('Session timeout')), 3000)
+          setTimeout(() => reject(new Error('Session timeout')), 5000)
         );
 
         const { data: { session }, error } = await Promise.race([
@@ -184,10 +212,8 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
       }
     };
 
-    // Initialize auth immediately
     initializeAuth();
 
-    // Listen for auth changes
     const { data: { subscription: authSubscription } } = supabase.auth.onAuthStateChange(
       async (event, session) => {
         if (!mounted) return;
@@ -250,7 +276,7 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
   };
 
   const hasAccess = (requiredTier: 'free' | 'pro' | 'studio'): boolean => {
-    // Admin users always have access
+    // Admin users always have full access
     if (subscription?.is_admin) {
       console.log('Admin access granted for tier:', requiredTier);
       return true;

@@ -68,20 +68,96 @@ const LyricsFlow = () => {
     console.log('Generating flow for lyrics:', lyrics.substring(0, 50) + '...');
     setIsGenerating(true);
     
-    // Simulate AI processing
-    setTimeout(() => {
-      setGeneratedFlow({
-        id: Date.now(),
-        originalLyrics: lyrics,
-        style: selectedStyle,
-        audioFile: 'generated_flow.wav',
-        audioUrl: 'https://www.soundjay.com/misc/sounds/bell-ringing-05.wav',
-        duration: '2:45',
-        timestamp: new Date().toISOString()
-      });
-      setIsGenerating(false);
-      console.log('Flow generation completed');
-    }, 3500);
+    // Create a realistic audio blob for demonstration
+    try {
+      // Generate a simple audio tone for demo purposes
+      const audioContext = new (window.AudioContext || (window as any).webkitAudioContext)();
+      const sampleRate = audioContext.sampleRate;
+      const duration = 30; // 30 seconds
+      const arrayBuffer = audioContext.createBuffer(1, sampleRate * duration, sampleRate);
+      const channelData = arrayBuffer.getChannelData(0);
+      
+      // Generate a simple melody with rhythm pattern
+      for (let i = 0; i < channelData.length; i++) {
+        const t = i / sampleRate;
+        const beat = Math.floor(t * 2) % 4; // 4/4 time at 120 BPM
+        const melody = Math.sin(2 * Math.PI * (220 + beat * 55) * t) * 0.1; // Varying pitch
+        const rhythm = beat % 2 === 0 ? 0.3 : 0.1; // Emphasis on beats 1 and 3
+        channelData[i] = melody * rhythm * Math.exp(-t * 0.1); // Decay over time
+      }
+      
+      // Convert to WAV blob
+      const wavBlob = audioBufferToWav(arrayBuffer);
+      const audioUrl = URL.createObjectURL(wavBlob);
+      
+      setTimeout(() => {
+        setGeneratedFlow({
+          id: Date.now(),
+          originalLyrics: lyrics,
+          style: selectedStyle,
+          audioFile: 'generated_flow.wav',
+          audioUrl: audioUrl,
+          duration: '0:30',
+          timestamp: new Date().toISOString()
+        });
+        setIsGenerating(false);
+        console.log('Flow generation completed');
+      }, 3500);
+    } catch (error) {
+      console.error('Audio generation error:', error);
+      // Fallback to demo without actual audio
+      setTimeout(() => {
+        setGeneratedFlow({
+          id: Date.now(),
+          originalLyrics: lyrics,
+          style: selectedStyle,
+          audioFile: 'generated_flow.wav',
+          audioUrl: '', // No audio URL for fallback
+          duration: '0:30',
+          timestamp: new Date().toISOString()
+        });
+        setIsGenerating(false);
+      }, 3500);
+    }
+  };
+
+  // Helper function to convert AudioBuffer to WAV blob
+  const audioBufferToWav = (buffer: AudioBuffer): Blob => {
+    const length = buffer.length;
+    const arrayBuffer = new ArrayBuffer(44 + length * 2);
+    const view = new DataView(arrayBuffer);
+    const channelData = buffer.getChannelData(0);
+    
+    // WAV header
+    const writeString = (offset: number, string: string) => {
+      for (let i = 0; i < string.length; i++) {
+        view.setUint8(offset + i, string.charCodeAt(i));
+      }
+    };
+    
+    writeString(0, 'RIFF');
+    view.setUint32(4, 36 + length * 2, true);
+    writeString(8, 'WAVE');
+    writeString(12, 'fmt ');
+    view.setUint32(16, 16, true);
+    view.setUint16(20, 1, true);
+    view.setUint16(22, 1, true);
+    view.setUint32(24, buffer.sampleRate, true);
+    view.setUint32(28, buffer.sampleRate * 2, true);
+    view.setUint16(32, 2, true);
+    view.setUint16(34, 16, true);
+    writeString(36, 'data');
+    view.setUint32(40, length * 2, true);
+    
+    // Convert float samples to 16-bit PCM
+    let offset = 44;
+    for (let i = 0; i < length; i++) {
+      const sample = Math.max(-1, Math.min(1, channelData[i]));
+      view.setInt16(offset, sample * 0x7FFF, true);
+      offset += 2;
+    }
+    
+    return new Blob([arrayBuffer], { type: 'audio/wav' });
   };
 
   const sampleLyrics = `Started from the bottom now we here
@@ -257,7 +333,10 @@ Started from the bottom now the whole team here`;
           <div className="border border-border rounded-lg p-4">
             <div className="flex items-center justify-between mb-3">
               <h4 className="font-medium text-sm">Original Lyrics</h4>
-              <button className="p-1 hover:bg-white/10 rounded transition-colors">
+              <button 
+                onClick={() => navigator.clipboard.writeText(generatedFlow.originalLyrics)}
+                className="p-1 hover:bg-white/10 rounded transition-colors"
+              >
                 <Copy className="w-4 h-4" />
               </button>
             </div>
@@ -268,7 +347,20 @@ Started from the bottom now the whole team here`;
 
           {/* Action Buttons */}
           <div className="flex items-center space-x-3">
-            <button className="flex-1 py-2 px-4 bg-primary hover:bg-primary/90 text-primary-foreground rounded-lg font-medium flex items-center justify-center space-x-2">
+            <button 
+              onClick={() => {
+                if (generatedFlow.audioUrl) {
+                  const a = document.createElement('a');
+                  a.href = generatedFlow.audioUrl;
+                  a.download = generatedFlow.audioFile;
+                  document.body.appendChild(a);
+                  a.click();
+                  document.body.removeChild(a);
+                }
+              }}
+              disabled={!generatedFlow.audioUrl}
+              className="flex-1 py-2 px-4 bg-primary hover:bg-primary/90 text-primary-foreground rounded-lg font-medium flex items-center justify-center space-x-2 disabled:opacity-50 disabled:cursor-not-allowed"
+            >
               <Download className="w-4 h-4" />
               <span>Download Audio</span>
             </button>
