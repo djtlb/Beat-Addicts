@@ -10,7 +10,6 @@ import LyricsFlow from './pages/LyricsFlow';
 import Harmonies from './pages/Harmonies';
 import Library from './pages/Library';
 import Profile from './pages/Profile';
-import ACEStepPage from './pages/ACEStepPage';
 import LoadingSpinner from './components/LoadingSpinner';
 
 function AppContent() {
@@ -43,7 +42,6 @@ function AppContent() {
         <Routes>
           <Route path="/" element={<Dashboard />} />
           <Route path="/generate" element={<Generate />} />
-          <Route path="/ace-step" element={<ACEStepPage />} />
           <Route path="/stem-splitter" element={<StemSplitter />} />
           <Route path="/lyrics-flow" element={<LyricsFlow />} />
           <Route path="/harmonies" element={<Harmonies />} />

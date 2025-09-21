@@ -10,8 +10,7 @@ import {
   Clock, 
   Download,
   Play,
-  Crown,
-  Zap
+  Crown
 } from 'lucide-react';
 
 const Dashboard = () => {
@@ -24,13 +23,6 @@ const Dashboard = () => {
       icon: Wand2,
       href: '/generate',
       color: 'from-purple-500 to-pink-500'
-    },
-    {
-      title: 'ACE-Step',
-      description: 'Foundation model generation',
-      icon: Zap,
-      href: '/ace-step',
-      color: 'from-yellow-500 to-orange-500'
     },
     {
       title: 'Stem Splitter',
@@ -132,7 +124,7 @@ const Dashboard = () => {
       {/* Quick Actions */}
       <div>
         <h2 className="text-2xl font-bold mb-6">Quick Actions</h2>
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-5 gap-6">
+        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
           {quickActions.map((action, index) => {
             const Icon = action.icon;
             return (
