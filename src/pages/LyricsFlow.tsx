@@ -13,6 +13,8 @@ import {
 import { useAuth } from '../hooks/useAuth';
 import PremiumGate from '../components/PremiumGate';
 import AudioPlayer from '../components/AudioPlayer';
+import VoiceRecorder from '../components/VoiceRecorder';
+import { aceStepClient } from '../lib/aceStep';
 
 const LyricsFlow = () => {
   const [lyrics, setLyrics] = useState('');
@@ -20,9 +22,10 @@ const LyricsFlow = () => {
   const [isGenerating, setIsGenerating] = useState(false);
   const [generatedFlow, setGeneratedFlow] = useState(null);
   const [customStylePrompt, setCustomStylePrompt] = useState('');
+  const [recordedVocal, setRecordedVocal] = useState(null);
   const { hasAccess } = useAuth();
 
-  console.log('LyricsFlow component rendered');
+  console.log('LyricsFlow component rendered with ACE-Step integration');
 
   const flowStyles = [
     {
@@ -40,18 +43,25 @@ const LyricsFlow = () => {
       premium: false
     },
     {
+      id: 'trap-style',
+      name: 'Trap Style',
+      description: 'Modern trap flow with autotune',
+      image: '🔥',
+      premium: false
+    },
+    {
       id: 'smooth-flow',
       name: 'Smooth Flow',
       description: 'Smooth, conversational flow',
       image: '🎭',
-      premium: 'studio'
+      premium: 'pro'
     },
     {
       id: 'storytelling',
       name: 'Storytelling',
       description: 'Dynamic, narrative style',
       image: '👑',
-      premium: 'studio'
+      premium: 'pro'
     },
     {
       id: 'custom',
@@ -65,119 +75,101 @@ const LyricsFlow = () => {
   const handleGenerate = async () => {
     if (!lyrics.trim()) return;
     
-    console.log('Generating flow for lyrics:', lyrics.substring(0, 50) + '...');
+    console.log('Starting ACE-Step lyric-to-flow generation');
     setIsGenerating(true);
     
-    // Create a realistic audio blob for demonstration
     try {
-      // Generate a simple audio tone for demo purposes
-      const audioContext = new (window.AudioContext || (window as any).webkitAudioContext)();
-      const sampleRate = audioContext.sampleRate;
-      const duration = 30; // 30 seconds
-      const arrayBuffer = audioContext.createBuffer(1, sampleRate * duration, sampleRate);
-      const channelData = arrayBuffer.getChannelData(0);
+      let styleDescription = selectedStyle;
       
-      // Generate a simple melody with rhythm pattern
-      for (let i = 0; i < channelData.length; i++) {
-        const t = i / sampleRate;
-        const beat = Math.floor(t * 2) % 4; // 4/4 time at 120 BPM
-        const melody = Math.sin(2 * Math.PI * (220 + beat * 55) * t) * 0.1; // Varying pitch
-        const rhythm = beat % 2 === 0 ? 0.3 : 0.1; // Emphasis on beats 1 and 3
-        channelData[i] = melody * rhythm * Math.exp(-t * 0.1); // Decay over time
+      if (selectedStyle === 'custom' && customStylePrompt.trim()) {
+        styleDescription = customStylePrompt;
       }
       
-      // Convert to WAV blob
-      const wavBlob = audioBufferToWav(arrayBuffer);
-      const audioUrl = URL.createObjectURL(wavBlob);
+      const result = await aceStepClient.lyricToFlow(lyrics, styleDescription);
       
-      setTimeout(() => {
-        setGeneratedFlow({
-          id: Date.now(),
-          originalLyrics: lyrics,
-          style: selectedStyle,
-          audioFile: 'generated_flow.wav',
-          audioUrl: audioUrl,
-          duration: '0:30',
-          timestamp: new Date().toISOString()
-        });
-        setIsGenerating(false);
-        console.log('Flow generation completed');
-      }, 3500);
+      setGeneratedFlow({
+        id: Date.now(),
+        originalLyrics: lyrics,
+        style: selectedStyle,
+        audioFile: 'generated_flow.wav',
+        audioUrl: result.audio_url,
+        duration: `${Math.floor(result.duration / 60)}:${String(result.duration % 60).padStart(2, '0')}`,
+        generationTime: result.generation_time,
+        rtf: result.rtf,
+        timestamp: new Date().toISOString()
+      });
+      
+      console.log('ACE-Step lyric-to-flow generation completed');
     } catch (error) {
-      console.error('Audio generation error:', error);
-      // Fallback to demo without actual audio
-      setTimeout(() => {
-        setGeneratedFlow({
-          id: Date.now(),
-          originalLyrics: lyrics,
-          style: selectedStyle,
-          audioFile: 'generated_flow.wav',
-          audioUrl: '', // No audio URL for fallback
-          duration: '0:30',
-          timestamp: new Date().toISOString()
-        });
-        setIsGenerating(false);
-      }, 3500);
+      console.error('Flow generation failed:', error);
+      alert('Flow generation failed. Please try again.');
+    } finally {
+      setIsGenerating(false);
     }
-  };
-
-  // Helper function to convert AudioBuffer to WAV blob
-  const audioBufferToWav = (buffer: AudioBuffer): Blob => {
-    const length = buffer.length;
-    const arrayBuffer = new ArrayBuffer(44 + length * 2);
-    const view = new DataView(arrayBuffer);
-    const channelData = buffer.getChannelData(0);
-    
-    // WAV header
-    const writeString = (offset: number, string: string) => {
-      for (let i = 0; i < string.length; i++) {
-        view.setUint8(offset + i, string.charCodeAt(i));
-      }
-    };
-    
-    writeString(0, 'RIFF');
-    view.setUint32(4, 36 + length * 2, true);
-    writeString(8, 'WAVE');
-    writeString(12, 'fmt ');
-    view.setUint32(16, 16, true);
-    view.setUint16(20, 1, true);
-    view.setUint16(22, 1, true);
-    view.setUint32(24, buffer.sampleRate, true);
-    view.setUint32(28, buffer.sampleRate * 2, true);
-    view.setUint16(32, 2, true);
-    view.setUint16(34, 16, true);
-    writeString(36, 'data');
-    view.setUint32(40, length * 2, true);
-    
-    // Convert float samples to 16-bit PCM
-    let offset = 44;
-    for (let i = 0; i < length; i++) {
-      const sample = Math.max(-1, Math.min(1, channelData[i]));
-      view.setInt16(offset, sample * 0x7FFF, true);
-      offset += 2;
-    }
-    
-    return new Blob([arrayBuffer], { type: 'audio/wav' });
   };
 
   const sampleLyrics = `Started from the bottom now we here
 Started from the bottom now my whole team here
 Started from the bottom now we here
-Started from the bottom now the whole team here`;
+Started from the bottom now the whole team here
+
+Look, I just flipped a switch, I don't know nobody else that's doing this
+Bodies start to drop, ayy, hit the floor
+Now they wanna know me since I hit the top, ayy
+This is not a love song, this a banger
+Tell me, can you take it to the brain? Yah
+Never been the type to let a stranger
+All up in my business and my space, nah
+
+Grinding every day, never taking breaks
+Making all these moves, whatever it takes
+From the city where we hustle for the cake
+Now we running up these numbers, no mistake`;
 
   const loadSample = () => {
     setLyrics(sampleLyrics);
     console.log('Sample lyrics loaded');
   };
 
+  const handleRecordingComplete = (audioBlob: Blob, duration: number) => {
+    setRecordedVocal({
+      blob: audioBlob,
+      duration: duration,
+      name: `vocal_reference_${Date.now()}.wav`,
+      size: audioBlob.size,
+      url: URL.createObjectURL(audioBlob)
+    });
+    console.log('Voice recording completed for ethical AI training');
+  };
+
   return (
     <div className="max-w-4xl mx-auto space-y-8">
       {/* Header */}
       <div className="text-center">
-        <h1 className="text-3xl font-bold text-gradient mb-4">Rap Lyrics-to-Flow Engine</h1>
+        <h1 className="text-3xl font-bold text-gradient mb-4">ACE-Step Lyrics-to-Flow Engine</h1>
         <p className="text-muted-foreground text-lg">
           Transform your raw lyrics into professional rap vocals with AI
         </p>
+        <p className="text-sm text-muted-foreground mt-2">
+          Powered by ACE-Step foundation model • Ethical voice cloning with consent
+        </p>
+      </div>
+
+      {/* Voice Recording Section */}
+      <div className="glass-card p-6 rounded-xl">
+        <h3 className="text-lg font-semibold mb-4 flex items-center space-x-2">
+          <Mic className="w-5 h-5 text-primary" />
+          <span>Voice Reference (Optional)</span>
+        </h3>
+        <p className="text-sm text-muted-foreground mb-4">
+          Record your own voice to personalize the AI-generated vocals. This is completely optional and only uses your voice with your explicit consent.
+        </p>
+        
+        <VoiceRecorder
+          onRecordingComplete={handleRecordingComplete}
+          maxDuration={30}
+          className=""
+        />
       </div>
 
       {/* Input Section */}
@@ -207,7 +199,7 @@ Started from the bottom now the whole team here`;
         {/* Style Selection */}
         <div>
           <label className="block text-sm font-medium mb-3">Flow Style</label>
-          <div className="grid grid-cols-1 md:grid-cols-3 lg:grid-cols-5 gap-3">
+          <div className="grid grid-cols-1 md:grid-cols-3 lg:grid-cols-6 gap-3">
             {flowStyles.map((style) => (
               <div key={style.id}>
                 {style.premium && !hasAccess(style.premium) ? (
@@ -254,7 +246,7 @@ Started from the bottom now the whole team here`;
               type="text"
               value={customStylePrompt}
               onChange={(e) => setCustomStylePrompt(e.target.value)}
-              placeholder="e.g., 'Aggressive, fast tempo, heavy autotune, trap-style delivery'"
+              placeholder="e.g., 'Aggressive, fast tempo, heavy autotune, trap-style delivery with melodic hooks'"
               className="w-full px-4 py-3 bg-input border border-border rounded-lg focus:outline-none focus:ring-2 focus:ring-primary"
             />
           </div>
@@ -267,7 +259,7 @@ Started from the bottom now the whole team here`;
           className={`
             w-full py-4 px-6 rounded-lg font-medium flex items-center justify-center space-x-2 transition-all
             ${lyrics.trim() && !isGenerating && (selectedStyle !== 'custom' || customStylePrompt.trim())
-              ? 'bg-primary hover:bg-primary/90 text-primary-foreground shadow-lg hover:shadow-xl'
+              ? 'bg-primary hover:bg-primary/90 text-primary-foreground shadow-lg hover:shadow-xl premium-glow'
               : 'bg-muted text-muted-foreground cursor-not-allowed'
             }
           `}
@@ -275,7 +267,7 @@ Started from the bottom now the whole team here`;
           {isGenerating ? (
             <>
               <Loader2 className="w-5 h-5 animate-spin" />
-              <span>Converting to flow...</span>
+              <span>Converting to flow with ACE-Step...</span>
             </>
           ) : (
             <>
@@ -294,7 +286,7 @@ Started from the bottom now the whole team here`;
               <Loader2 className="w-8 h-8 animate-spin text-primary" />
             </div>
             <div className="flex-1">
-              <h3 className="font-medium mb-2">AI is creating your rap flow...</h3>
+              <h3 className="font-medium mb-2">ACE-Step is creating your rap flow...</h3>
               <div className="w-full bg-muted rounded-full h-2">
                 <div className="bg-primary h-2 rounded-full animate-pulse" style={{ width: '80%' }}></div>
               </div>
@@ -317,7 +309,7 @@ Started from the bottom now the whole team here`;
             <div className="flex items-center space-x-2 text-sm text-muted-foreground">
               <span>{flowStyles.find(s => s.id === generatedFlow.style)?.name} Style</span>
               <span>•</span>
-              <span>{generatedFlow.duration}</span>
+              <span>Generated in {generatedFlow.generationTime?.toFixed(2)}s</span>
             </div>
           </div>
 

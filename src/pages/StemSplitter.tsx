@@ -13,6 +13,8 @@ import {
   Drum,
   Guitar
 } from 'lucide-react';
+import { aceStepClient } from '../lib/aceStep';
+import AudioPlayer from '../components/AudioPlayer';
 
 const StemSplitter = () => {
   const [isDragOver, setIsDragOver] = useState(false);
@@ -21,7 +23,7 @@ const StemSplitter = () => {
   const [stems, setStems] = useState(null);
   const [addDJDrop, setAddDJDrop] = useState(false);
 
-  console.log('StemSplitter component rendered');
+  console.log('StemSplitter component rendered with ACE-Step integration');
 
   const handleDragOver = useCallback((e) => {
     e.preventDefault();
@@ -43,6 +45,8 @@ const StemSplitter = () => {
       if (file.type.startsWith('audio/')) {
         setUploadedFile(file);
         console.log('File dropped:', file.name);
+      } else {
+        alert('Please upload an audio file');
       }
     }
   }, []);
@@ -50,29 +54,73 @@ const StemSplitter = () => {
   const handleFileSelect = (e) => {
     const file = e.target.files[0];
     if (file) {
-      setUploadedFile(file);
-      console.log('File selected:', file.name);
+      if (file.type.startsWith('audio/')) {
+        setUploadedFile(file);
+        console.log('File selected:', file.name);
+      } else {
+        alert('Please select an audio file');
+      }
     }
   };
 
   const handleProcessStems = async () => {
     if (!uploadedFile) return;
     
-    console.log('Starting stem separation');
+    console.log('Starting ACE-Step stem separation');
     setIsProcessing(true);
     
-    // Simulate processing
-    setTimeout(() => {
+    try {
+      const result = await aceStepClient.stemSeparation(uploadedFile);
+      
       setStems({
-        vocals: { name: 'Vocals.wav', size: '4.2 MB', duration: '3:24' },
-        drums: { name: 'Drums.wav', size: '3.8 MB', duration: '3:24' },
-        bass: { name: 'Bass.wav', size: '2.1 MB', duration: '3:24' },
-        instruments: { name: 'Instruments.wav', size: '5.6 MB', duration: '3:24' },
-        djDrop: addDJDrop ? { name: 'DJ_Drop.wav', size: '0.8 MB', duration: '0:05' } : null
+        vocals: { 
+          name: 'Vocals.wav', 
+          size: '4.2 MB', 
+          duration: '3:24',
+          audioUrl: result.vocals
+        },
+        drums: { 
+          name: 'Drums.wav', 
+          size: '3.8 MB', 
+          duration: '3:24',
+          audioUrl: result.drums
+        },
+        bass: { 
+          name: 'Bass.wav', 
+          size: '2.1 MB', 
+          duration: '3:24',
+          audioUrl: result.bass
+        },
+        instruments: { 
+          name: 'Instruments.wav', 
+          size: '5.6 MB', 
+          duration: '3:24',
+          audioUrl: result.instruments
+        },
+        djDrop: addDJDrop ? { 
+          name: 'DJ_Drop.wav', 
+          size: '0.8 MB', 
+          duration: '0:05',
+          audioUrl: await aceStepClient.generateMusic({
+            tags: 'DJ drop, air horn, vocal sample, club ready',
+            duration: 5,
+            steps: 20,
+            guidance_scale: 8.0,
+            seed: Math.floor(Math.random() * 1000000),
+            scheduler_type: 'euler',
+            cfg_type: 'constant',
+            use_random_seed: true
+          }).then(r => r.audio_url)
+        } : null
       });
+      
+      console.log('ACE-Step stem separation completed');
+    } catch (error) {
+      console.error('Stem separation failed:', error);
+      alert('Stem separation failed. Please try again.');
+    } finally {
       setIsProcessing(false);
-      console.log('Stem separation completed');
-    }, 4000);
+    }
   };
 
   const stemTypes = [
@@ -82,13 +130,43 @@ const StemSplitter = () => {
     { key: 'instruments', label: 'Instruments', icon: Guitar, color: 'from-green-500 to-emerald-500' }
   ];
 
+  const downloadAllStems = () => {
+    if (!stems) return;
+    
+    // Download each stem individually
+    stemTypes.forEach(stemType => {
+      const stem = stems[stemType.key];
+      if (stem?.audioUrl) {
+        const a = document.createElement('a');
+        a.href = stem.audioUrl;
+        a.download = stem.name;
+        document.body.appendChild(a);
+        a.click();
+        document.body.removeChild(a);
+      }
+    });
+    
+    // Download DJ drop if it exists
+    if (stems.djDrop?.audioUrl) {
+      const a = document.createElement('a');
+      a.href = stems.djDrop.audioUrl;
+      a.download = stems.djDrop.name;
+      document.body.appendChild(a);
+      a.click();
+      document.body.removeChild(a);
+    }
+  };
+
   return (
     <div className="max-w-4xl mx-auto space-y-8">
       {/* Header */}
       <div className="text-center">
-        <h1 className="text-3xl font-bold text-gradient mb-4">Stem Splitter + Auto DJ Drop</h1>
+        <h1 className="text-3xl font-bold text-gradient mb-4">ACE-Step Stem Splitter + Auto DJ Drop</h1>
         <p className="text-muted-foreground text-lg">
-          Separate your audio into individual stems and add professional DJ drops
+          Separate your audio into individual stems and add professional DJ drops with AI
+        </p>
+        <p className="text-sm text-muted-foreground mt-2">
+          Powered by ACE-Step foundation model for professional audio processing
         </p>
       </div>
 
@@ -117,7 +195,7 @@ const StemSplitter = () => {
                 Drag and drop your audio file here, or click to browse
               </p>
               <p className="text-sm text-muted-foreground mt-2">
-                Supports MP3, WAV, FLAC, M4A • Max 50MB
+                Supports MP3, WAV, FLAC, M4A • Max 50MB • Best results with mixed tracks
               </p>
             </div>
             <input
@@ -138,7 +216,7 @@ const StemSplitter = () => {
             <div className="flex-1">
               <h3 className="font-semibold">{uploadedFile.name}</h3>
               <p className="text-sm text-muted-foreground">
-                {(uploadedFile.size / (1024 * 1024)).toFixed(1)} MB • Ready to process
+                {(uploadedFile.size / (1024 * 1024)).toFixed(1)} MB • Ready for ACE-Step processing
               </p>
             </div>
             <button
@@ -154,14 +232,14 @@ const StemSplitter = () => {
       {/* Processing Options */}
       {uploadedFile && !isProcessing && !stems && (
         <div className="glass-card p-6 rounded-xl space-y-6">
-          <h3 className="text-lg font-semibold">Processing Options</h3>
+          <h3 className="text-lg font-semibold">ACE-Step Processing Options</h3>
           
           {/* DJ Drop Toggle */}
           <div className="flex items-center justify-between p-4 bg-black/20 rounded-lg">
             <div>
               <h4 className="font-medium">Add Auto DJ Drop</h4>
               <p className="text-sm text-muted-foreground">
-                Automatically add a professional DJ drop to your track
+                Generate a professional DJ drop using ACE-Step AI
               </p>
             </div>
             <button
@@ -181,10 +259,10 @@ const StemSplitter = () => {
           {/* Process Button */}
           <button
             onClick={handleProcessStems}
-            className="w-full py-4 px-6 bg-primary hover:bg-primary/90 text-primary-foreground rounded-lg font-medium flex items-center justify-center space-x-2 transition-colors"
+            className="w-full py-4 px-6 bg-primary hover:bg-primary/90 text-primary-foreground rounded-lg font-medium flex items-center justify-center space-x-2 transition-colors premium-glow"
           >
             <Scissors className="w-5 h-5" />
-            <span>Split Into Stems</span>
+            <span>Split Into Stems with ACE-Step</span>
           </button>
         </div>
       )}
@@ -197,9 +275,9 @@ const StemSplitter = () => {
               <Loader2 className="w-8 h-8 text-primary animate-spin" />
             </div>
             <div>
-              <h3 className="text-xl font-semibold mb-2">Processing Your Audio</h3>
+              <h3 className="text-xl font-semibold mb-2">ACE-Step is Processing Your Audio</h3>
               <p className="text-muted-foreground">
-                AI is separating your track into individual stems...
+                AI is separating your track into individual stems using advanced source separation...
               </p>
             </div>
             <div className="max-w-md mx-auto">
@@ -209,7 +287,7 @@ const StemSplitter = () => {
               <div className="flex justify-between text-xs text-muted-foreground mt-2">
                 <span>Analyzing audio</span>
                 <span>Separating elements</span>
-                <span>Finalizing</span>
+                <span>Finalizing stems</span>
               </div>
             </div>
           </div>
@@ -224,9 +302,12 @@ const StemSplitter = () => {
               <CheckCircle className="w-6 h-6 text-green-500" />
               <span>Stems Ready</span>
             </h3>
-            <button className="px-4 py-2 bg-primary hover:bg-primary/90 text-primary-foreground rounded-lg font-medium flex items-center space-x-2">
+            <button 
+              onClick={downloadAllStems}
+              className="px-4 py-2 bg-primary hover:bg-primary/90 text-primary-foreground rounded-lg font-medium flex items-center space-x-2"
+            >
               <Download className="w-4 h-4" />
-              <span>Download All (ZIP)</span>
+              <span>Download All</span>
             </button>
           </div>
 
@@ -237,7 +318,7 @@ const StemSplitter = () => {
               
               return (
                 <div key={stemType.key} className="glass-card p-4 rounded-lg">
-                  <div className="flex items-center space-x-3">
+                  <div className="flex items-center space-x-3 mb-4">
                     <div className={`w-12 h-12 bg-gradient-to-br ${stemType.color} rounded-lg flex items-center justify-center`}>
                       <Icon className="w-6 h-6 text-white" />
                     </div>
@@ -247,32 +328,28 @@ const StemSplitter = () => {
                         {stem.size} • {stem.duration}
                       </p>
                     </div>
-                    <div className="flex items-center space-x-1">
-                      <button className="p-2 hover:bg-white/10 rounded-lg transition-colors">
-                        <Play className="w-4 h-4" />
-                      </button>
-                      <button className="p-2 hover:bg-white/10 rounded-lg transition-colors">
-                        <Volume2 className="w-4 h-4" />
-                      </button>
-                      <button className="p-2 hover:bg-white/10 rounded-lg transition-colors">
-                        <Download className="w-4 h-4" />
-                      </button>
-                    </div>
+                    <button 
+                      onClick={() => {
+                        const a = document.createElement('a');
+                        a.href = stem.audioUrl;
+                        a.download = stem.name;
+                        document.body.appendChild(a);
+                        a.click();
+                        document.body.removeChild(a);
+                      }}
+                      className="p-2 hover:bg-white/10 rounded-lg transition-colors"
+                    >
+                      <Download className="w-4 h-4" />
+                    </button>
                   </div>
                   
-                  {/* Mini waveform */}
-                  <div className="mt-3 flex items-center justify-center space-x-1 h-8">
-                    {[...Array(20)].map((_, i) => (
-                      <div
-                        key={i}
-                        className={`w-1 bg-gradient-to-t ${stemType.color} rounded-full`}
-                        style={{
-                          height: `${Math.random() * 24 + 4}px`,
-                          opacity: 0.7
-                        }}
-                      />
-                    ))}
-                  </div>
+                  {/* Audio Player for each stem */}
+                  <AudioPlayer
+                    audioUrl={stem.audioUrl}
+                    title={stem.name}
+                    duration={stem.duration}
+                    showWaveform={false}
+                  />
                 </div>
               );
             })}
@@ -281,25 +358,37 @@ const StemSplitter = () => {
           {/* DJ Drop */}
           {stems.djDrop && (
             <div className="glass-card p-4 rounded-lg bg-gradient-to-r from-yellow-500/10 to-orange-500/10 border border-yellow-500/20">
-              <div className="flex items-center space-x-3">
+              <div className="flex items-center space-x-3 mb-4">
                 <div className="w-12 h-12 bg-gradient-to-br from-yellow-500 to-orange-500 rounded-lg flex items-center justify-center">
                   <Mic className="w-6 h-6 text-white" />
                 </div>
                 <div className="flex-1">
-                  <h4 className="font-medium">DJ Drop (Auto-Generated)</h4>
+                  <h4 className="font-medium">DJ Drop (AI Generated)</h4>
                   <p className="text-sm text-muted-foreground">
-                    {stems.djDrop.size} • {stems.djDrop.duration}
+                    {stems.djDrop.size} • {stems.djDrop.duration} • Professional club ready
                   </p>
                 </div>
-                <div className="flex items-center space-x-1">
-                  <button className="p-2 hover:bg-white/10 rounded-lg transition-colors">
-                    <Play className="w-4 h-4" />
-                  </button>
-                  <button className="p-2 hover:bg-white/10 rounded-lg transition-colors">
-                    <Download className="w-4 h-4" />
-                  </button>
-                </div>
+                <button 
+                  onClick={() => {
+                    const a = document.createElement('a');
+                    a.href = stems.djDrop.audioUrl;
+                    a.download = stems.djDrop.name;
+                    document.body.appendChild(a);
+                    a.click();
+                    document.body.removeChild(a);
+                  }}
+                  className="p-2 hover:bg-white/10 rounded-lg transition-colors"
+                >
+                  <Download className="w-4 h-4" />
+                </button>
               </div>
+              
+              <AudioPlayer
+                audioUrl={stems.djDrop.audioUrl}
+                title={stems.djDrop.name}
+                duration={stems.djDrop.duration}
+                showWaveform={false}
+              />
             </div>
           )}
         </div>
