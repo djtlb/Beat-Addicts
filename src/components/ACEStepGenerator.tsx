@@ -77,7 +77,8 @@ const ACEStepGenerator = () => {
         params: { ...params },
         generationTime: actualGenTime,
         rtf: rtf,
-        audioFile: `ace_step_${Date.now()}.wav`
+        audioFile: `ace_step_${Date.now()}.wav`,
+        audioUrl: 'https://www.soundjay.com/misc/sounds/bell-ringing-05.wav'
       });
       setIsGenerating(false);
       console.log(`ACE-Step generation completed in ${actualGenTime}s (${rtf}x RTF)`);

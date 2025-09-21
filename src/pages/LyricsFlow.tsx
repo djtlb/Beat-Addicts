@@ -16,7 +16,7 @@ import AudioPlayer from '../components/AudioPlayer';
 
 const LyricsFlow = () => {
   const [lyrics, setLyrics] = useState('');
-  const [selectedStyle, setSelectedStyle] = useState('eminem');
+  const [selectedStyle, setSelectedStyle] = useState('fast-rap');
   const [isGenerating, setIsGenerating] = useState(false);
   const [generatedFlow, setGeneratedFlow] = useState(null);
   const [customStylePrompt, setCustomStylePrompt] = useState('');
@@ -26,30 +26,30 @@ const LyricsFlow = () => {
 
   const flowStyles = [
     {
-      id: 'eminem',
-      name: 'Eminem',
+      id: 'fast-rap',
+      name: 'Fast Rap',
       description: 'Fast-paced, complex rhyme schemes',
       image: '🎤',
       premium: false
     },
     {
-      id: 'kid-laroi',
-      name: 'Kid Laroi',
+      id: 'melodic-rap',
+      name: 'Melodic Rap',
       description: 'Melodic, emotional delivery',
       image: '🎵',
       premium: false
     },
     {
-      id: 'drake',
-      name: 'Drake',
+      id: 'smooth-flow',
+      name: 'Smooth Flow',
       description: 'Smooth, conversational flow',
       image: '🎭',
       premium: 'studio'
     },
     {
-      id: 'kendrick',
-      name: 'Kendrick',
-      description: 'Dynamic, storytelling style',
+      id: 'storytelling',
+      name: 'Storytelling',
+      description: 'Dynamic, narrative style',
       image: '👑',
       premium: 'studio'
     },
