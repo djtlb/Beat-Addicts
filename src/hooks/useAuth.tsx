@@ -149,23 +149,28 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
 
   useEffect(() => {
     let mounted = true;
+    let timeoutId: NodeJS.Timeout;
 
     const initializeAuth = async () => {
       try {
         console.log('Initializing authentication...');
         
+        // Clear any existing timeout
+        if (timeoutId) clearTimeout(timeoutId);
+        
+        // Set a reasonable timeout for session retrieval
         const sessionPromise = supabase.auth.getSession();
-        const timeoutPromise = new Promise((_, reject) => 
-          setTimeout(() => reject(new Error('Session timeout')), 5000)
-        );
+        
+        timeoutId = setTimeout(() => {
+          console.warn('Session retrieval taking longer than expected, continuing with initialization...');
+        }, 3000);
 
-        const { data: { session }, error } = await Promise.race([
-          sessionPromise,
-          timeoutPromise
-        ]) as any;
+        const { data: { session }, error } = await sessionPromise;
+        clearTimeout(timeoutId);
 
         if (error) {
           console.error('Session error:', error);
+          // Don't throw on session errors, just continue
         }
 
         if (!mounted) return;
@@ -200,6 +205,7 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
       } catch (error) {
         console.error('Auth initialization error:', error);
         if (mounted) {
+          // Set default state instead of throwing
           setSession(null);
           setUser(null);
           setSubscription(null);
@@ -219,6 +225,22 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
         if (!mounted) return;
         
         console.log('Auth state changed:', event, session?.user?.email);
+        
+        // Handle different auth events
+        if (event === 'SIGNED_OUT') {
+          setSession(null);
+          setUser(null);
+          setSubscription(null);
+          return;
+        }
+        
+        if (event === 'TOKEN_REFRESHED' && session) {
+          console.log('Token refreshed successfully');
+          setSession(session);
+          setUser(session.user);
+          return;
+        }
+        
         setSession(session);
         setUser(session?.user ?? null);
         
@@ -250,29 +272,45 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
 
     return () => {
       mounted = false;
+      if (timeoutId) clearTimeout(timeoutId);
       authSubscription.unsubscribe();
     };
   }, []);
 
   const signUp = async (email: string, password: string) => {
-    const { error } = await supabase.auth.signUp({ 
-      email, 
-      password,
-      options: {
-        emailRedirectTo: window.location.origin
-      }
-    });
-    if (error) throw error;
+    try {
+      const { error } = await supabase.auth.signUp({ 
+        email, 
+        password,
+        options: {
+          emailRedirectTo: window.location.origin
+        }
+      });
+      if (error) throw error;
+    } catch (error) {
+      console.error('Sign up error:', error);
+      throw error;
+    }
   };
 
   const signIn = async (email: string, password: string) => {
-    const { error } = await supabase.auth.signInWithPassword({ email, password });
-    if (error) throw error;
+    try {
+      const { error } = await supabase.auth.signInWithPassword({ email, password });
+      if (error) throw error;
+    } catch (error) {
+      console.error('Sign in error:', error);
+      throw error;
+    }
   };
 
   const signOut = async () => {
-    const { error } = await supabase.auth.signOut();
-    if (error) throw error;
+    try {
+      const { error } = await supabase.auth.signOut();
+      if (error) throw error;
+    } catch (error) {
+      console.error('Sign out error:', error);
+      throw error;
+    }
   };
 
   const hasAccess = (requiredTier: 'free' | 'pro' | 'studio'): boolean => {
