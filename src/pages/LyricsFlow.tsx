@@ -12,6 +12,7 @@ import {
 } from 'lucide-react';
 import { useAuth } from '../hooks/useAuth';
 import PremiumGate from '../components/PremiumGate';
+import AudioPlayer from '../components/AudioPlayer';
 
 const LyricsFlow = () => {
   const [lyrics, setLyrics] = useState('');
@@ -74,6 +75,7 @@ const LyricsFlow = () => {
         originalLyrics: lyrics,
         style: selectedStyle,
         audioFile: 'generated_flow.wav',
+        audioUrl: 'https://www.soundjay.com/misc/sounds/bell-ringing-05.wav',
         duration: '2:45',
         timestamp: new Date().toISOString()
       });
@@ -244,44 +246,12 @@ Started from the bottom now the whole team here`;
           </div>
 
           {/* Audio Player */}
-          <div className="bg-black/20 rounded-lg p-4">
-            <div className="flex items-center space-x-4">
-              <div className="w-16 h-16 bg-gradient-to-br from-purple-500 to-pink-500 rounded-lg flex items-center justify-center">
-                <Music className="w-8 h-8 text-white" />
-              </div>
-              <div className="flex-1">
-                <h4 className="font-medium">Rap Flow Audio</h4>
-                <p className="text-sm text-muted-foreground">
-                  {generatedFlow.audioFile} • {generatedFlow.duration}
-                </p>
-              </div>
-              <div className="flex items-center space-x-2">
-                <button className="p-3 bg-primary hover:bg-primary/90 rounded-full transition-colors">
-                  <Play className="w-5 h-5 text-primary-foreground" />
-                </button>
-                <button className="p-3 hover:bg-white/10 rounded-full transition-colors">
-                  <Volume2 className="w-5 h-5" />
-                </button>
-                <button className="p-3 hover:bg-white/10 rounded-full transition-colors">
-                  <Download className="w-5 h-5" />
-                </button>
-              </div>
-            </div>
-
-            {/* Waveform */}
-            <div className="mt-4 flex items-center justify-center space-x-1 h-12">
-              {[...Array(40)].map((_, i) => (
-                <div
-                  key={i}
-                  className="w-1 bg-gradient-to-t from-purple-500 to-electric-500 rounded-full"
-                  style={{
-                    height: `${Math.random() * 40 + 8}px`,
-                    opacity: Math.random() * 0.8 + 0.2
-                  }}
-                />
-              ))}
-            </div>
-          </div>
+          <AudioPlayer
+            audioUrl={generatedFlow.audioUrl}
+            title="Rap Flow Audio"
+            duration={generatedFlow.duration}
+            showWaveform={true}
+          />
 
           {/* Original Lyrics Reference */}
           <div className="border border-border rounded-lg p-4">

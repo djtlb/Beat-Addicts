@@ -1,7 +1,6 @@
 import React, { useState } from 'react';
 import { 
   Waves, 
-  Upload, 
   Play, 
   Download, 
   Volume2, 
@@ -13,9 +12,11 @@ import {
 } from 'lucide-react';
 import { useAuth } from '../hooks/useAuth';
 import PremiumGate from '../components/PremiumGate';
+import VoiceRecorder from '../components/VoiceRecorder';
+import AudioPlayer from '../components/AudioPlayer';
 
 const Harmonies = () => {
-  const [uploadedVocal, setUploadedVocal] = useState(null);
+  const [recordedVocal, setRecordedVocal] = useState(null);
   const [harmonyStyle, setHarmonyStyle] = useState('natural');
   const [intensity, setIntensity] = useState(50);
   const [layerCount, setLayerCount] = useState(3);
@@ -58,16 +59,18 @@ const Harmonies = () => {
     }
   ];
 
-  const handleFileUpload = (event) => {
-    const file = event.target.files[0];
-    if (file) {
-      setUploadedVocal(file);
-      console.log('Vocal file uploaded:', file.name);
-    }
+  const handleRecordingComplete = (audioBlob, duration) => {
+    setRecordedVocal({
+      blob: audioBlob,
+      duration: duration,
+      name: `vocal_recording_${Date.now()}.wav`,
+      size: audioBlob.size
+    });
+    console.log('Vocal recording completed:', { duration, size: audioBlob.size });
   };
 
   const handleProcessHarmonies = async () => {
-    if (!uploadedVocal) return;
+    if (!recordedVocal) return;
     
     console.log('Starting harmony processing');
     setIsProcessing(true);
@@ -81,19 +84,22 @@ const Harmonies = () => {
           name: `Harmony Layer ${i}`,
           file: `harmony_layer_${i}.wav`,
           size: `${(Math.random() * 2 + 1).toFixed(1)} MB`,
-          pitch: i === 1 ? '+3 semitones' : i === 2 ? '-3 semitones' : `${i > 3 ? '+' : ''}${(i - 3) * 2} semitones`
+          pitch: i === 1 ? '+3 semitones' : i === 2 ? '-3 semitones' : `${i > 3 ? '+' : ''}${(i - 3) * 2} semitones`,
+          audioUrl: 'https://www.soundjay.com/misc/sounds/bell-ringing-05.wav'
         });
       }
       
       setProcessedHarmonies({
         originalVocal: {
-          name: uploadedVocal.name,
-          size: `${(uploadedVocal.size / (1024 * 1024)).toFixed(1)} MB`
+          name: recordedVocal.name,
+          size: `${(recordedVocal.size / (1024 * 1024)).toFixed(1)} MB`,
+          audioUrl: URL.createObjectURL(recordedVocal.blob)
         },
         layers: layers,
         mixedVersion: {
           name: 'harmonies_mixed.wav',
-          size: `${(Math.random() * 5 + 3).toFixed(1)} MB`
+          size: `${(Math.random() * 5 + 3).toFixed(1)} MB`,
+          audioUrl: 'https://www.soundjay.com/misc/sounds/bell-ringing-05.wav'
         },
         style: harmonyStyle,
         intensity: intensity,
@@ -110,65 +116,40 @@ const Harmonies = () => {
       <div className="text-center">
         <h1 className="text-3xl font-bold text-gradient mb-4">AI Harmonies & Vocal Layering</h1>
         <p className="text-muted-foreground text-lg">
-          Add professional vocal harmonies and layers to your recordings
+          Record your voice and add professional vocal harmonies and layers
         </p>
       </div>
 
-      {/* Upload Section */}
-      {!uploadedVocal ? (
-        <div className="glass-card p-12 rounded-xl border-2 border-dashed border-border hover:border-primary/50 transition-all cursor-pointer"
-             onClick={() => document.getElementById('vocal-upload').click()}>
-          <div className="text-center space-y-4">
-            <div className="mx-auto w-16 h-16 bg-primary/20 rounded-full flex items-center justify-center">
-              <Upload className="w-8 h-8 text-primary" />
-            </div>
-            <div>
-              <h3 className="text-xl font-semibold mb-2">Upload Your Vocal Recording</h3>
-              <p className="text-muted-foreground">
-                Upload a clean vocal recording for AI harmony generation
-              </p>
-              <p className="text-sm text-muted-foreground mt-2">
-                Supports MP3, WAV, FLAC • Max 25MB
-              </p>
-            </div>
-            <input
-              id="vocal-upload"
-              type="file"
-              accept="audio/*"
-              onChange={handleFileUpload}
-              className="hidden"
-            />
-          </div>
-        </div>
+      {/* Voice Recording Section */}
+      {!recordedVocal ? (
+        <VoiceRecorder
+          onRecordingComplete={handleRecordingComplete}
+          maxDuration={60}
+          className="glass-card"
+        />
       ) : (
         <div className="glass-card p-6 rounded-xl">
-          <div className="flex items-center space-x-4">
-            <div className="w-16 h-16 bg-gradient-to-br from-purple-500 to-pink-500 rounded-lg flex items-center justify-center">
-              <Music className="w-8 h-8 text-white" />
-            </div>
-            <div className="flex-1">
-              <h3 className="font-semibold">{uploadedVocal.name}</h3>
-              <p className="text-sm text-muted-foreground">
-                {(uploadedVocal.size / (1024 * 1024)).toFixed(1)} MB • Ready for harmony processing
-              </p>
-            </div>
-            <div className="flex items-center space-x-2">
-              <button className="p-2 hover:bg-white/10 rounded-lg transition-colors">
-                <Play className="w-4 h-4" />
-              </button>
-              <button
-                onClick={() => setUploadedVocal(null)}
-                className="px-4 py-2 text-sm hover:bg-white/10 rounded-lg transition-colors"
-              >
-                Remove
-              </button>
-            </div>
+          <div className="flex items-center justify-between mb-4">
+            <h3 className="text-lg font-semibold">Your Recorded Voice</h3>
+            <button
+              onClick={() => setRecordedVocal(null)}
+              className="px-4 py-2 text-sm hover:bg-white/10 rounded-lg transition-colors"
+            >
+              Record Again
+            </button>
           </div>
+          
+          <AudioPlayer
+            audioUrl={URL.createObjectURL(recordedVocal.blob)}
+            title={recordedVocal.name}
+            duration={`${Math.floor(recordedVocal.duration / 60)}:${String(recordedVocal.duration % 60).padStart(2, '0')}`}
+            showWaveform={true}
+          />
         </div>
       )}
 
       {/* Configuration */}
-      {uploadedVocal && !isProcessing && !processedHarmonies && (
+      {recordedVocal && !isProcessing && !processedHarmonies && (
         <div className="glass-card p-8 rounded-xl space-y-8">
           <h3 className="text-lg font-semibold">Harmony Configuration</h3>
           
@@ -318,81 +299,37 @@ const Harmonies = () => {
 
           {/* Mixed Version */}
           <div className="glass-card p-4 rounded-lg bg-gradient-to-r from-primary/10 to-purple-500/10 border border-primary/20">
-            <div className="flex items-center space-x-3">
-              <div className="w-12 h-12 bg-gradient-to-br from-primary to-purple-500 rounded-lg flex items-center justify-center">
-                <Waves className="w-6 h-6 text-white" />
-              </div>
-              <div className="flex-1">
-                <h4 className="font-medium">Complete Mix (Original + Harmonies)</h4>
-                <p className="text-sm text-muted-foreground">
-                  {processedHarmonies.mixedVersion.size} • {harmonyStyles.find(s => s.id === processedHarmonies.style)?.name} style
-                </p>
-              </div>
-              <div className="flex items-center space-x-1">
-                <button className="p-2 hover:bg-white/10 rounded-lg transition-colors">
-                  <Play className="w-4 h-4" />
-                </button>
-                <button className="p-2 hover:bg-white/10 rounded-lg transition-colors">
-                  <Volume2 className="w-4 h-4" />
-                </button>
-                <button className="p-2 hover:bg-white/10 rounded-lg transition-colors">
-                  <Download className="w-4 h-4" />
-                </button>
-              </div>
-            </div>
+            <h4 className="font-medium mb-3">Complete Mix (Original + Harmonies)</h4>
+            <AudioPlayer
+              audioUrl={processedHarmonies.mixedVersion.audioUrl}
+              title={processedHarmonies.mixedVersion.name}
+              duration="3:24"
+              showWaveform={true}
+            />
           </div>
 
           {/* Original Vocal */}
           <div className="glass-card p-4 rounded-lg">
-            <div className="flex items-center space-x-3">
-              <div className="w-12 h-12 bg-gradient-to-br from-gray-500 to-gray-600 rounded-lg flex items-center justify-center">
-                <Music className="w-6 h-6 text-white" />
-              </div>
-              <div className="flex-1">
-                <h4 className="font-medium">Original Vocal</h4>
-                <p className="text-sm text-muted-foreground">
-                  {processedHarmonies.originalVocal.name} • {processedHarmonies.originalVocal.size}
-                </p>
-              </div>
-              <div className="flex items-center space-x-1">
-                <button className="p-2 hover:bg-white/10 rounded-lg transition-colors">
-                  <Play className="w-4 h-4" />
-                </button>
-                <button className="p-2 hover:bg-white/10 rounded-lg transition-colors">
-                  <Download className="w-4 h-4" />
-                </button>
-              </div>
-            </div>
+            <h4 className="font-medium mb-3">Original Vocal</h4>
+            <AudioPlayer
+              audioUrl={processedHarmonies.originalVocal.audioUrl}
+              title={processedHarmonies.originalVocal.name}
+              duration="2:45"
+              showWaveform={true}
+            />
           </div>
 
           {/* Individual Layers */}
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
             {processedHarmonies.layers.map((layer, index) => (
               <div key={layer.id} className="glass-card p-4 rounded-lg">
-                <div className="flex items-center space-x-3">
-                  <div className={`w-12 h-12 bg-gradient-to-br ${
-                    index % 4 === 0 ? 'from-blue-500 to-cyan-500' :
-                    index % 4 === 1 ? 'from-green-500 to-emerald-500' :
-                    index % 4 === 2 ? 'from-yellow-500 to-orange-500' :
-                    'from-red-500 to-pink-500'
-                  } rounded-lg flex items-center justify-center`}>
-                    <Layers className="w-6 h-6 text-white" />
-                  </div>
-                  <div className="flex-1">
-                    <h4 className="font-medium text-sm">{layer.name}</h4>
-                    <p className="text-xs text-muted-foreground">
-                      {layer.size} • {layer.pitch}
-                    </p>
-                  </div>
-                  <div className="flex items-center space-x-1">
-                    <button className="p-2 hover:bg-white/10 rounded-lg transition-colors">
-                      <Play className="w-3 h-3" />
-                    </button>
-                    <button className="p-2 hover:bg-white/10 rounded-lg transition-colors">
-                      <Download className="w-3 h-3" />
-                    </button>
-                  </div>
-                </div>
+                <h4 className="font-medium text-sm mb-3">{layer.name} ({layer.pitch})</h4>
+                <AudioPlayer
+                  audioUrl={layer.audioUrl}
+                  title={layer.name}
+                  duration="2:45"
+                  showWaveform={false}
+                />
               </div>
             ))}
           </div>

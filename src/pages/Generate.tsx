@@ -1,7 +1,6 @@
 import React, { useState } from 'react';
 import { 
   Wand2, 
-  Upload, 
   Play, 
   Download, 
   Settings, 
@@ -12,13 +11,13 @@ import {
 } from 'lucide-react';
 import { useAuth } from '../hooks/useAuth';
 import PremiumGate from '../components/PremiumGate';
+import AudioPlayer from '../components/AudioPlayer';
 
 const Generate = () => {
   const [prompt, setPrompt] = useState('');
   const [generationType, setGenerationType] = useState('full-track');
   const [isGenerating, setIsGenerating] = useState(false);
   const [generatedTrack, setGeneratedTrack] = useState(null);
-  const [uploadedFile, setUploadedFile] = useState(null);
   const { hasAccess } = useAuth();
 
   console.log('Generate component rendered');
@@ -45,26 +44,19 @@ const Generate = () => {
     console.log('Starting generation with prompt:', prompt);
     setIsGenerating(true);
     
-    // Simulate AI generation
+    // Simulate AI generation with audio URL
     setTimeout(() => {
       setGeneratedTrack({
         id: Date.now(),
         title: 'AI Generated Track',
         duration: '3:24',
         prompt: prompt,
-        type: generationType
+        type: generationType,
+        audioUrl: 'https://www.soundjay.com/misc/sounds/bell-ringing-05.wav' // Demo audio
       });
       setIsGenerating(false);
       console.log('Generation completed');
     }, 3000);
-  };
-
-  const handleFileUpload = (event) => {
-    const file = event.target.files[0];
-    if (file) {
-      setUploadedFile(file);
-      console.log('File uploaded:', file.name);
-    }
   };
 
   return (
@@ -125,43 +117,6 @@ const Generate = () => {
               ))}
             </div>
           </div>
-
-          {/* Reference Upload (Premium) */}
-          <PremiumGate requiredTier="pro">
-            <div className="border border-dashed border-border rounded-lg p-6 text-center">
-              <div className="flex flex-col items-center space-y-3">
-                <div className="p-3 bg-primary/20 rounded-lg">
-                  <Upload className="w-6 h-6 text-primary" />
-                </div>
-                <div>
-                  <p className="font-medium flex items-center justify-center space-x-2">
-                    <span>Upload Reference Audio</span>
-                    <Crown className="w-4 h-4 text-yellow-400" />
-                  </p>
-                  <p className="text-sm text-muted-foreground">
-                    AI will analyze and create similar music
-                  </p>
-                </div>
-                <input
-                  type="file"
-                  accept="audio/*"
-                  onChange={handleFileUpload}
-                  className="hidden"
-                  id="reference-upload"
-                  name="referenceUpload"
-                />
-                <label
-                  htmlFor="reference-upload"
-                  className="px-4 py-2 bg-primary hover:bg-primary/90 text-primary-foreground rounded-lg cursor-pointer transition-colors"
-                >
-                  Choose File
-                </label>
-                {uploadedFile && (
-                  <p className="text-sm text-green-400">✓ {uploadedFile.name}</p>
-                )}
-              </div>
-            </div>
-          </PremiumGate>
 
           {/* Quick Filters */}
           <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
@@ -243,56 +198,33 @@ const Generate = () => {
 
       {/* Generated Result */}
       {generatedTrack && (
-        <div className="glass-card p-6 rounded-xl">
+        <div className="glass-card p-6 rounded-xl space-y-4">
           <div className="flex items-center justify-between mb-4">
-            <h3 className="text-lg font-semibold">Generated Track</h3>
-            <div className="flex items-center space-x-2">
-              <button className="p-2 hover:bg-white/10 rounded-lg transition-colors">
-                <Settings className="w-4 h-4" />
-              </button>
-            </div>
-          </div>
-          
-          <div className="flex items-center space-x-4 p-4 bg-black/20 rounded-lg">
-            <div className="w-16 h-16 bg-gradient-to-br from-purple-500 to-pink-500 rounded-lg flex items-center justify-center">
-              <Music className="w-8 h-8 text-white" />
-            </div>
-            <div className="flex-1">
-              <h4 className="font-medium">{generatedTrack.title}</h4>
-              <p className="text-sm text-muted-foreground">
-                {generatedTrack.duration} • {generationTypes.find(t => t.id === generatedTrack.type)?.label}
-              </p>
-              <p className="text-xs text-muted-foreground mt-1 line-clamp-2">
-                "{generatedTrack.prompt}"
-              </p>
-            </div>
-            <div className="flex items-center space-x-2">
-              <button className="p-3 bg-primary hover:bg-primary/90 rounded-full transition-colors">
-                <Play className="w-5 h-5 text-primary-foreground" />
-              </button>
-              <button className="p-3 hover:bg-white/10 rounded-full transition-colors">
-                <Volume2 className="w-5 h-5" />
-              </button>
-              <button className="p-3 hover:bg-white/10 rounded-full transition-colors">
-                <Download className="w-5 h-5" />
-              </button>
+            <h3 className="text-lg font-semibold flex items-center space-x-2">
+              <Music className="w-6 h-6 text-primary" />
+              <span>Generated Track</span>
+            </h3>
+            <div className="flex items-center space-x-2 text-sm text-muted-foreground">
+              <span>{generationTypes.find(t => t.id === generatedTrack.type)?.label}</span>
+              <span>•</span>
+              <span>{generatedTrack.duration}</span>
             </div>
           </div>
 
-          {/* Audio Waveform Placeholder */}
-          <div className="mt-4 p-4 bg-black/10 rounded-lg">
-            <div className="flex items-center justify-center space-x-1 h-16">
-              {[...Array(50)].map((_, i) => (
-                <div
-                  key={i}
-                  className="w-1 bg-gradient-to-t from-purple-500 to-electric-500 rounded-full"
-                  style={{
-                    height: `${Math.random() * 60 + 10}px`,
-                    opacity: Math.random() * 0.8 + 0.2
-                  }}
-                />
-              ))}
-            </div>
+          {/* Audio Player */}
+          <AudioPlayer
+            audioUrl={generatedTrack.audioUrl}
+            title={generatedTrack.title}
+            duration={generatedTrack.duration}
+            showWaveform={true}
+          />
+
+          {/* Generation Info */}
+          <div className="border border-border rounded-lg p-4 bg-black/10">
+            <h4 className="font-medium text-sm mb-2">Generation Details</h4>
+            <p className="text-xs text-muted-foreground">
+              Prompt: "{generatedTrack.prompt}"
+            </p>
           </div>
         </div>
       )}
