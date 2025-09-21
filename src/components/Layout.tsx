@@ -12,7 +12,8 @@ import {
   X,
   Crown,
   LogOut,
-  Shield
+  Shield,
+  Zap
 } from 'lucide-react';
 import { useAuth } from '../hooks/useAuth';
 
@@ -30,6 +31,7 @@ const Layout = ({ children }: LayoutProps) => {
   const navigation = [
     { name: 'Dashboard', href: '/', icon: Music },
     { name: 'AI Generate', href: '/generate', icon: Wand2 },
+    { name: 'ACE-Step', href: '/ace-step', icon: Zap },
     { name: 'Stem Splitter', href: '/stem-splitter', icon: Scissors },
     { name: 'Lyrics Flow', href: '/lyrics-flow', icon: Mic },
     { name: 'Harmonies', href: '/harmonies', icon: Waves },

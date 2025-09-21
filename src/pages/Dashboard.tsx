@@ -10,7 +10,8 @@ import {
   Clock, 
   Download,
   Play,
-  Crown
+  Crown,
+  Zap
 } from 'lucide-react';
 
 const Dashboard = () => {
@@ -23,6 +24,13 @@ const Dashboard = () => {
       icon: Wand2,
       href: '/generate',
       color: 'from-purple-500 to-pink-500'
+    },
+    {
+      title: 'ACE-Step',
+      description: 'Foundation model generation',
+      icon: Zap,
+      href: '/ace-step',
+      color: 'from-yellow-500 to-orange-500'
     },
     {
       title: 'Stem Splitter',
@@ -43,7 +51,7 @@ const Dashboard = () => {
       description: 'Add vocal layers',
       icon: Waves,
       href: '/harmonies',
-      color: 'from-orange-500 to-red-500'
+      color: 'from-red-500 to-pink-500'
     }
   ];
 
@@ -88,15 +96,15 @@ const Dashboard = () => {
         <div className="flex items-center justify-between">
           <div>
             <h1 className="text-3xl font-bold text-gradient mb-2">
-              Welcome back, John! 
+              Welcome back, Sally! 
             </h1>
             <p className="text-muted-foreground text-lg">
               Ready to create some amazing music with AI?
             </p>
           </div>
-          <div className="flex items-center space-x-2 bg-gradient-to-r from-yellow-500/20 to-orange-500/20 px-4 py-2 rounded-lg border border-yellow-500/30">
-            <Crown className="w-5 h-5 text-yellow-400" />
-            <span className="text-yellow-400 font-medium">Platinum Member</span>
+          <div className="flex items-center space-x-2 bg-gradient-to-r from-red-500/20 to-orange-500/20 px-4 py-2 rounded-lg border border-red-500/30">
+            <Crown className="w-5 h-5 text-red-400" />
+            <span className="text-red-400 font-medium">Administrator</span>
           </div>
         </div>
       </div>
@@ -124,7 +132,7 @@ const Dashboard = () => {
       {/* Quick Actions */}
       <div>
         <h2 className="text-2xl font-bold mb-6">Quick Actions</h2>
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
+        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-5 gap-6">
           {quickActions.map((action, index) => {
             const Icon = action.icon;
             return (
