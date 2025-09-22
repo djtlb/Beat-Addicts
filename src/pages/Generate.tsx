@@ -1,26 +1,20 @@
-import React, { useState } from 'react';
-import { 
-  Wand2, 
-  Play, 
-  Download, 
-  Settings, 
-  Crown,
-  Loader2,
-  Music,
-  Volume2,
-  Sliders,
-  Clock,
-  Shuffle,
-  Zap,
-  Layers,
-  BarChart3,
-  Sparkles,
-  FileText
+import {
+    BarChart3,
+    Clock,
+    Crown,
+    Layers,
+    Loader2,
+    Music,
+    Settings,
+    Shuffle,
+    Sparkles,
+    Wand2,
+    Zap
 } from 'lucide-react';
-import { useAuth } from '../hooks/useAuth';
-import PremiumGate from '../components/PremiumGate';
+import { useState } from 'react';
 import AudioPlayer from '../components/AudioPlayer';
 import GenreSelector from '../components/GenreSelector';
+import { useAuth } from '../hooks/useAuth';
 import { aceStepClient, type GenerationParams } from '../lib/aceStep';
 import { openaiClient } from '../lib/openai';
 
@@ -34,7 +28,7 @@ const Generate = () => {
   const [showAdvanced, setShowAdvanced] = useState(false);
   const [isGeneratingLyrics, setIsGeneratingLyrics] = useState(false);
   const [lyricsTheme, setLyricsTheme] = useState('');
-  
+
   // Advanced parameters
   const [duration, setDuration] = useState(180);
   const [steps, setSteps] = useState(27);
@@ -45,7 +39,7 @@ const Generate = () => {
   const [cfgType, setCfgType] = useState('constant');
   const [productionStyle, setProductionStyle] = useState('professional');
   const [arrangementMode, setArrangementMode] = useState('structured');
-  
+
   const { hasAccess } = useAuth();
 
   console.log('Generate component rendered with advanced ACE-Step integration and genre selection');
@@ -106,10 +100,10 @@ const Generate = () => {
 
   const handleGenerate = async () => {
     if (!prompt.trim()) return;
-    
+
     console.log('Starting advanced ACE-Step music generation with genre:', selectedGenre);
     setIsGenerating(true);
-    
+
     try {
       const params: GenerationParams = {
         tags: prompt,
@@ -127,7 +121,7 @@ const Generate = () => {
       };
 
       const result = await aceStepClient.generateMusic(params);
-      
+
       setGeneratedTrack({
         id: Date.now(),
         title: `${selectedGenre.toUpperCase()} Track - ${productionStyle}`,
@@ -143,7 +137,7 @@ const Generate = () => {
         rtf: result.rtf,
         metadata: result.metadata
       });
-      
+
       console.log('Advanced ACE-Step generation completed successfully');
     } catch (error) {
       console.error('Advanced generation failed:', error);
@@ -264,7 +258,7 @@ const Generate = () => {
                   <span>AI Generate</span>
                 </button>
               </div>
-              
+
               {/* Lyrics Theme Input */}
               <div className="mb-3">
                 <input
@@ -275,7 +269,7 @@ const Generate = () => {
                   className="w-full px-3 py-2 bg-input border border-border rounded-lg focus:outline-none focus:ring-2 focus:ring-primary text-sm"
                 />
               </div>
-              
+
               {/* Lyrics Textarea */}
               <textarea
                 value={lyrics}
@@ -301,8 +295,8 @@ const Generate = () => {
                       disabled={type.premium && !hasAccess(type.premium)}
                       className={`
                         w-full p-3 rounded-lg border text-left transition-all relative
-                        ${generationType === type.id 
-                          ? 'border-primary bg-primary/10 shadow-lg' 
+                        ${generationType === type.id
+                          ? 'border-primary bg-primary/10 shadow-lg'
                           : 'border-border hover:border-primary/50'
                         }
                         ${type.premium && !hasAccess(type.premium) ? 'opacity-60 cursor-not-allowed' : 'cursor-pointer'}
@@ -328,8 +322,8 @@ const Generate = () => {
                       onClick={() => setProductionStyle(style.id)}
                       className={`
                         w-full p-3 rounded-lg border text-left transition-all
-                        ${productionStyle === style.id 
-                          ? 'border-primary bg-primary/10 shadow-lg' 
+                        ${productionStyle === style.id
+                          ? 'border-primary bg-primary/10 shadow-lg'
                           : 'border-border hover:border-primary/50'
                         }
                       `}
@@ -494,8 +488,8 @@ const Generate = () => {
                       <button
                         onClick={() => setUseRandomSeed(!useRandomSeed)}
                         className={`px-3 py-2 text-xs rounded-lg transition-colors ${
-                          useRandomSeed 
-                            ? 'bg-primary text-primary-foreground' 
+                          useRandomSeed
+                            ? 'bg-primary text-primary-foreground'
                             : 'bg-muted text-muted-foreground hover:bg-white/10'
                         }`}
                       >
