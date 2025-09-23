@@ -1,25 +1,22 @@
-import React, { useState } from 'react';
-import { 
-  Wand2, 
-  Play, 
-  Download, 
-  Settings, 
-  Crown,
-  Loader2,
-  Music,
-  Volume2,
-  Sliders,
-  Clock,
-  Shuffle,
-  Zap,
-  Layers,
-  BarChart3
+import {
+    BarChart3,
+    Clock,
+    Crown,
+    Layers,
+    Loader2,
+    Music,
+    Settings,
+    Shuffle,
+    Sparkles,
+    Wand2,
+    Zap
 } from 'lucide-react';
-import { useAuth } from '../hooks/useAuth';
-import PremiumGate from '../components/PremiumGate';
+import { useState } from 'react';
 import AudioPlayer from '../components/AudioPlayer';
 import GenreSelector from '../components/GenreSelector';
+import { useAuth } from '../hooks/useAuth';
 import { aceStepClient, type GenerationParams } from '../lib/aceStep';
+import { openaiClient } from '../lib/openai';
 
 const Generate = () => {
   const [prompt, setPrompt] = useState('');
@@ -29,7 +26,9 @@ const Generate = () => {
   const [isGenerating, setIsGenerating] = useState(false);
   const [generatedTrack, setGeneratedTrack] = useState(null);
   const [showAdvanced, setShowAdvanced] = useState(false);
-  
+  const [isGeneratingLyrics, setIsGeneratingLyrics] = useState(false);
+  const [lyricsTheme, setLyricsTheme] = useState('');
+
   // Advanced parameters
   const [duration, setDuration] = useState(180);
   const [steps, setSteps] = useState(27);
@@ -40,7 +39,7 @@ const Generate = () => {
   const [cfgType, setCfgType] = useState('constant');
   const [productionStyle, setProductionStyle] = useState('professional');
   const [arrangementMode, setArrangementMode] = useState('structured');
-  
+
   const { hasAccess } = useAuth();
 
   console.log('Generate component rendered with advanced ACE-Step integration and genre selection');
@@ -101,10 +100,10 @@ const Generate = () => {
 
   const handleGenerate = async () => {
     if (!prompt.trim()) return;
-    
+
     console.log('Starting advanced ACE-Step music generation with genre:', selectedGenre);
     setIsGenerating(true);
-    
+
     try {
       const params: GenerationParams = {
         tags: prompt,
@@ -122,7 +121,7 @@ const Generate = () => {
       };
 
       const result = await aceStepClient.generateMusic(params);
-      
+
       setGeneratedTrack({
         id: Date.now(),
         title: `${selectedGenre.toUpperCase()} Track - ${productionStyle}`,
@@ -138,7 +137,7 @@ const Generate = () => {
         rtf: result.rtf,
         metadata: result.metadata
       });
-      
+
       console.log('Advanced ACE-Step generation completed successfully');
     } catch (error) {
       console.error('Advanced generation failed:', error);
@@ -159,6 +158,26 @@ const Generate = () => {
 
   const handleGenreTagsUpdate = (tags: string) => {
     setPrompt(tags);
+  };
+
+  const generateLyrics = async () => {
+    if (!lyricsTheme.trim()) return;
+
+    setIsGeneratingLyrics(true);
+    try {
+      const generatedLyrics = await openaiClient.generateLyrics(
+        lyricsTheme,
+        selectedGenre,
+        'modern',
+        { temperature: 0.8, max_tokens: 1000 }
+      );
+      setLyrics(generatedLyrics);
+    } catch (error) {
+      console.error('Lyrics generation failed:', error);
+      alert('Lyrics generation failed. Please try again.');
+    } finally {
+      setIsGeneratingLyrics(false);
+    }
   };
 
   return (
@@ -216,15 +235,51 @@ const Generate = () => {
               </p>
             </div>
 
-            {/* Lyrics Input */}
+            {/* Lyrics Input with AI Generation */}
             <div>
-              <label className="block text-sm font-medium mb-2">Lyrics (Optional)</label>
+              <div className="flex items-center justify-between mb-2">
+                <label className="block text-sm font-medium">Lyrics (Optional)</label>
+                <button
+                  onClick={generateLyrics}
+                  disabled={!lyricsTheme.trim() || isGeneratingLyrics}
+                  className={`
+                    flex items-center space-x-1 px-3 py-1 rounded text-xs font-medium transition-all
+                    ${lyricsTheme.trim() && !isGeneratingLyrics
+                      ? 'bg-primary/20 text-primary hover:bg-primary/30'
+                      : 'bg-muted text-muted-foreground cursor-not-allowed'
+                    }
+                  `}
+                >
+                  {isGeneratingLyrics ? (
+                    <Loader2 className="w-3 h-3 animate-spin" />
+                  ) : (
+                    <Sparkles className="w-3 h-3" />
+                  )}
+                  <span>AI Generate</span>
+                </button>
+              </div>
+
+              {/* Lyrics Theme Input */}
+              <div className="mb-3">
+                <input
+                  type="text"
+                  value={lyricsTheme}
+                  onChange={(e) => setLyricsTheme(e.target.value)}
+                  placeholder="Enter lyrics theme (e.g., 'love and heartbreak', 'freedom and adventure')"
+                  className="w-full px-3 py-2 bg-input border border-border rounded-lg focus:outline-none focus:ring-2 focus:ring-primary text-sm"
+                />
+              </div>
+
+              {/* Lyrics Textarea */}
               <textarea
                 value={lyrics}
                 onChange={(e) => setLyrics(e.target.value)}
-                placeholder="[verse]&#10;Your lyrics here&#10;[chorus]&#10;With structure tags"
+                placeholder="[verse]&#10;Your lyrics here&#10;[chorus]&#10;With structure tags&#10;&#10;Or use AI generation above!"
                 className="w-full h-32 px-4 py-3 bg-input border border-border rounded-lg resize-none focus:outline-none focus:ring-2 focus:ring-primary font-mono text-sm"
               />
+              <p className="text-xs text-muted-foreground mt-1">
+                Write your own lyrics or use AI to generate them based on your theme
+              </p>
             </div>
 
             {/* Production Controls */}
@@ -240,8 +295,8 @@ const Generate = () => {
                       disabled={type.premium && !hasAccess(type.premium)}
                       className={`
                         w-full p-3 rounded-lg border text-left transition-all relative
-                        ${generationType === type.id 
-                          ? 'border-primary bg-primary/10 shadow-lg' 
+                        ${generationType === type.id
+                          ? 'border-primary bg-primary/10 shadow-lg'
                           : 'border-border hover:border-primary/50'
                         }
                         ${type.premium && !hasAccess(type.premium) ? 'opacity-60 cursor-not-allowed' : 'cursor-pointer'}
@@ -267,8 +322,8 @@ const Generate = () => {
                       onClick={() => setProductionStyle(style.id)}
                       className={`
                         w-full p-3 rounded-lg border text-left transition-all
-                        ${productionStyle === style.id 
-                          ? 'border-primary bg-primary/10 shadow-lg' 
+                        ${productionStyle === style.id
+                          ? 'border-primary bg-primary/10 shadow-lg'
                           : 'border-border hover:border-primary/50'
                         }
                       `}
@@ -433,8 +488,8 @@ const Generate = () => {
                       <button
                         onClick={() => setUseRandomSeed(!useRandomSeed)}
                         className={`px-3 py-2 text-xs rounded-lg transition-colors ${
-                          useRandomSeed 
-                            ? 'bg-primary text-primary-foreground' 
+                          useRandomSeed
+                            ? 'bg-primary text-primary-foreground'
                             : 'bg-muted text-muted-foreground hover:bg-white/10'
                         }`}
                       >
