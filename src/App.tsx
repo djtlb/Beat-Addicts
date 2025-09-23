@@ -1,16 +1,17 @@
 import { Route, Routes } from 'react-router-dom';
 import Layout from './components/Layout';
-import LoadingSpinner from './components/LoadingSpinner';
-import LoginForm from './components/LoginForm';
 import { AuthProvider, useAuth } from './hooks/useAuth';
 import Dashboard from './pages/Dashboard';
-import DrumAndBassDemo from './pages/DrumAndBassDemo';
 import Generate from './pages/Generate';
+import StemSplitter from './pages/StemSplitter';
+import LyricsFlow from './pages/LyricsFlow';
 import Harmonies from './pages/Harmonies';
 import Library from './pages/Library';
-import LyricsFlow from './pages/LyricsFlow';
 import Profile from './pages/Profile';
-import StemSplitter from './pages/StemSplitter';
+import DrumAndBassDemo from './pages/DrumAndBassDemo';
+import RadioReadyGenerator from './pages/RadioReadyGenerator';
+import LoadingSpinner from './components/LoadingSpinner';
+import LoginForm from './components/LoginForm';
 
 function AppContent() {
   const { user, loading } = useAuth();
@@ -42,6 +43,7 @@ function AppContent() {
         <Routes>
           <Route path="/" element={<Dashboard />} />
           <Route path="/generate" element={<Generate />} />
+          <Route path="/radio-ready" element={<RadioReadyGenerator />} />
           <Route path="/demo-dnb" element={<DrumAndBassDemo />} />
           <Route path="/stem-splitter" element={<StemSplitter />} />
           <Route path="/lyrics-flow" element={<LyricsFlow />} />

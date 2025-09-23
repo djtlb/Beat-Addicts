@@ -30,6 +30,7 @@ const Layout = ({ children }: LayoutProps) => {
   const navigation = [
     { name: 'Dashboard', href: '/', icon: Music },
     { name: 'AI Generate', href: '/generate', icon: Wand2 },
+    { name: 'Radio Ready', href: '/radio-ready', icon: Music },
     { name: 'DnB Demo', href: '/demo-dnb', icon: Music, demo: true },
     { name: 'Stem Splitter', href: '/stem-splitter', icon: Scissors },
     { name: 'Lyrics Flow', href: '/lyrics-flow', icon: Mic },

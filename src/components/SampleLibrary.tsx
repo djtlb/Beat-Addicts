@@ -1,6 +1,6 @@
-import React, { useState, useEffect } from 'react';
-import { Play, Pause, Download, Music, Volume2 } from 'lucide-react';
-import { sampleTracks, generateSampleTracks } from '../lib/sampleTracks';
+import { Music, Pause, Play } from 'lucide-react';
+import React, { useEffect, useState } from 'react';
+import { generateSampleTracks, sampleTracks } from '../lib/sampleTracks';
 
 interface SampleLibraryProps {
   onSelectSample?: (track: any) => void;

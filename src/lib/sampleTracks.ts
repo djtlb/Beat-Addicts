@@ -1,57 +1,60 @@
-import { aceStepClient } from '../lib/aceStep';
+import { aceStepClient } from "../lib/aceStep";
 
 // Generate and save sample tracks for demo purposes
 export const generateSampleTracks = async () => {
   const samples = [
     {
-      name: 'demo-edm',
-      genre: 'edm',
-      prompt: 'festival anthem with massive drops, uplifting synths, emotional breakdowns, crowd-pleasing energy',
-      duration: 60
+      name: "demo-pop-radio",
+      genre: "pop",
+      theme: "Love in the spotlight",
+      type: "anthem",
     },
     {
-      name: 'demo-house',
-      genre: 'house',
-      prompt: 'deep house groove with warm bassline, soulful elements, dancefloor energy',
-      duration: 60
+      name: "demo-hip-hop-radio",
+      genre: "hip-hop",
+      theme: "Rising from the streets",
+      type: "single",
     },
     {
-      name: 'demo-trap',
-      genre: 'trap',
-      prompt: 'hard-hitting trap with 808 bass, crisp snares, melodic elements',
-      duration: 60
+      name: "demo-rock-radio",
+      genre: "rock",
+      theme: "Breaking free",
+      type: "single",
     },
     {
-      name: 'demo-dnb',
-      genre: 'dnb',
-      prompt: 'drum and bass with rolling basslines, mechanical rhythms, underground energy',
-      duration: 60
-    }
+      name: "demo-country-radio",
+      genre: "country",
+      theme: "Small town dreams",
+      type: "song",
+    },
   ];
 
   const sampleUrls: { [key: string]: string } = {};
 
   for (const sample of samples) {
     try {
-      console.log(`Generating sample: ${sample.name}`);
+      console.log(`Generating radio-ready sample: ${sample.name}`);
 
-      const result = await aceStepClient.generateMusic({
-        tags: sample.prompt,
-        duration: sample.duration,
-        steps: 20, // Faster generation for samples
-        guidance_scale: 7.5,
-        seed: Math.floor(Math.random() * 1000000),
-        scheduler_type: 'euler',
-        cfg_type: 'constant',
-        use_random_seed: true,
-        genre: sample.genre,
-        production_style: 'professional',
-        structure: 'structured'
-      });
+      let result;
+      switch (sample.genre) {
+        case "pop":
+          result = await aceStepClient.generatePopRadioAnthem(sample.theme, true);
+          break;
+        case "hip-hop":
+          result = await aceStepClient.generateHipHopRadioSingle(sample.theme, true);
+          break;
+        case "rock":
+          result = await aceStepClient.generateRockRadioSingle(sample.theme, true);
+          break;
+        case "country":
+          result = await aceStepClient.generateCountryRadioSong(sample.theme, true);
+          break;
+        default:
+          result = await aceStepClient.generatePopRadioAnthem(sample.theme, true);
+      }
 
       sampleUrls[sample.name] = result.audio_url;
       console.log(`✅ Generated ${sample.name}: ${result.audio_url}`);
-
     } catch (error) {
       console.error(`❌ Failed to generate ${sample.name}:`, error);
     }
@@ -63,46 +66,50 @@ export const generateSampleTracks = async () => {
 // Pre-generated sample data for immediate use
 export const sampleTracks = [
   {
-    id: 'sample-edm',
-    title: 'EDM Festival Anthem',
-    genre: 'EDM',
-    duration: '1:00',
-    description: 'Massive drops, uplifting synths, crowd energy',
-    audioUrl: '', // Will be populated by generateSampleTracks
-    tags: ['electronic', 'festival', 'anthem', 'drops', 'energy']
+    id: "sample-pop-radio",
+    title: "Pop Radio Anthem",
+    genre: "Pop",
+    duration: "3:30",
+    description:
+      "Catchy radio-ready pop with massive hooks and commercial production",
+    audioUrl: "", // Will be populated by generateSampleTracks
+    tags: ["pop", "radio-ready", "anthem", "commercial", "catchy"],
   },
   {
-    id: 'sample-house',
-    title: 'Deep House Groove',
-    genre: 'House',
-    duration: '1:00',
-    description: 'Warm bassline, soulful elements, dancefloor ready',
-    audioUrl: '',
-    tags: ['house', 'deep', 'groove', 'bassline', 'soulful']
+    id: "sample-hip-hop-radio",
+    title: "Hip-Hop Radio Single",
+    genre: "Hip-Hop",
+    duration: "3:15",
+    description:
+      "Urban contemporary hit with strong vocals and radio-clean lyrics",
+    audioUrl: "",
+    tags: ["hip-hop", "radio-ready", "urban", "contemporary", "vocals"],
   },
   {
-    id: 'sample-trap',
-    title: 'Hard Trap Banger',
-    genre: 'Trap',
-    duration: '1:00',
-    description: '808 bass, crisp snares, melodic elements',
-    audioUrl: '',
-    tags: ['trap', '808', 'hard-hitting', 'melodic', 'modern']
+    id: "sample-rock-radio",
+    title: "Rock Radio Single",
+    genre: "Rock",
+    duration: "4:00",
+    description: "Modern rock with powerful guitars and memorable riffs",
+    audioUrl: "",
+    tags: ["rock", "radio-ready", "powerful", "guitars", "memorable"],
   },
   {
-    id: 'sample-dnb',
-    title: 'Drum & Bass Roller',
-    genre: 'DnB',
-    duration: '1:00',
-    description: 'Rolling basslines, mechanical rhythms, underground',
-    audioUrl: '',
-    tags: ['drum and bass', 'rolling', 'mechanical', 'underground']
-  }
+    id: "sample-country-radio",
+    title: "Country Radio Song",
+    genre: "Country",
+    duration: "3:30",
+    description:
+      "Storytelling country with acoustic elements and emotional delivery",
+    audioUrl: "",
+    tags: ["country", "radio-ready", "storytelling", "acoustic", "emotional"],
+  },
 ];
 
 export const getSampleTrack = (genre: string) => {
-  return sampleTracks.find(track =>
-    track.genre.toLowerCase() === genre.toLowerCase() ||
-    track.tags.some(tag => tag.toLowerCase().includes(genre.toLowerCase()))
+  return sampleTracks.find(
+    (track) =>
+      track.genre.toLowerCase() === genre.toLowerCase() ||
+      track.tags.some((tag) => tag.toLowerCase().includes(genre.toLowerCase()))
   );
 };
