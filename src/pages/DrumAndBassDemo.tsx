@@ -1,5 +1,5 @@
-import React, { useState, useEffect, useCallback, useMemo } from 'react';
-import { Play, Download, Loader2, Music, Volume2 } from 'lucide-react';
+import { Loader2, Music, Play, Volume2 } from 'lucide-react';
+import { useCallback, useEffect, useMemo, useState } from 'react';
 import AudioPlayer from '../components/AudioPlayer';
 import { aceStepClient, type GenerationParams } from '../lib/aceStep';
 

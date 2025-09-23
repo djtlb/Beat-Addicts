@@ -14,6 +14,7 @@ import {
 import { useState } from 'react';
 import AudioPlayer from '../components/AudioPlayer';
 import GenreSelector from '../components/GenreSelector';
+import SampleLibrary from '../components/SampleLibrary';
 import { useAuth } from '../hooks/useAuth';
 import { aceStepClient, type GenerationParams } from '../lib/aceStep';
 import { openaiClient } from '../lib/openai';
@@ -202,6 +203,14 @@ const Generate = () => {
         selectedGenre={selectedGenre}
         onGenreSelect={setSelectedGenre}
         onTagsUpdate={handleGenreTagsUpdate}
+      />
+
+      {/* Sample Library */}
+      <SampleLibrary
+        onSelectSample={(track) => {
+          setPrompt(track.description);
+          setSelectedGenre(track.genre.toLowerCase());
+        }}
       />
 
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
@@ -591,11 +600,9 @@ const Generate = () => {
             <div className="flex items-center space-x-4 text-sm text-muted-foreground">
               <span className="capitalize font-medium text-primary">{generatedTrack.genre}</span>
               <span>•</span>
-              <span>{generatedTrack.productionStyle} Style</span>
+              <span>Production Style: {generatedTrack.productionStyle}</span>
               <span>•</span>
-              <span>Generated in {generatedTrack.generationTime?.toFixed(2)}s</span>
-              <span>•</span>
-              <span>{generatedTrack.rtf?.toFixed(2)}x RTF</span>
+              <span>Arrangement: {generatedTrack.arrangementMode}</span>
             </div>
           </div>
 
@@ -603,55 +610,45 @@ const Generate = () => {
           <AudioPlayer
             audioUrl={generatedTrack.audioUrl}
             title={generatedTrack.title}
+            artist="ACE-Step AI"
+            artwork="/path/to/artwork.jpg"
             duration={generatedTrack.duration}
-            showWaveform={true}
           />
 
-          {/* Track Analysis */}
-          {generatedTrack.metadata?.structure_analysis && (
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-              <div className="border border-border rounded-lg p-4 bg-black/10">
-                <h4 className="font-medium text-sm mb-2 flex items-center space-x-1">
-                  <Layers className="w-4 h-4" />
-                  <span>Song Structure</span>
-                </h4>
-                <div className="space-y-1">
-                  {generatedTrack.metadata.structure_analysis.structure.map((section, i) => (
-                    <div key={i} className="text-xs px-2 py-1 bg-primary/10 rounded text-primary">
-                      {section}
-                    </div>
-                  ))}
-                </div>
-              </div>
-
-              <div className="border border-border rounded-lg p-4 bg-black/10">
-                <h4 className="font-medium text-sm mb-2 flex items-center space-x-1">
-                  <Music className="w-4 h-4" />
-                  <span>Production Elements</span>
-                </h4>
-                <div className="grid grid-cols-2 gap-1">
-                  {generatedTrack.metadata.structure_analysis.detected_elements.map((element, i) => (
-                    <div key={i} className="text-xs px-2 py-1 bg-muted rounded text-muted-foreground">
-                      {element}
-                    </div>
-                  ))}
-                </div>
-              </div>
+          {/* Track Details */}
+          <div className="space-y-2">
+            <div className="text-sm text-muted-foreground">
+              <span>Prompt:</span> {generatedTrack.prompt}
             </div>
-          )}
-
-          {/* Generation Info */}
-          <div className="border border-border rounded-lg p-4 bg-black/10">
-            <h4 className="font-medium text-sm mb-2">Generation Details</h4>
-            <div className="grid grid-cols-2 md:grid-cols-4 gap-4 text-sm text-muted-foreground">
-              <div>Steps: {steps}</div>
-              <div>Guidance: {guidanceScale}</div>
-              <div>Scheduler: {schedulerType}</div>
-              <div>Duration: {generatedTrack.duration}</div>
+            {generatedTrack.lyrics && (
+              <div className="text-sm text-muted-foreground">
+                <span>Lyrics:</span> {generatedTrack.lyrics}
+              </div>
+            )}
+            <div className="text-sm text-muted-foreground">
+              <span>Duration:</span> {generatedTrack.duration}
             </div>
-            <div className="mt-2 text-xs text-muted-foreground">
-              <p>Prompt: "{generatedTrack.prompt}"</p>
-              {generatedTrack.lyrics && <p>Lyrics: "{generatedTrack.lyrics.substring(0, 100)}..."</p>}
+            <div className="text-sm text-muted-foreground">
+              <span>Generation Time:</span> {generatedTrack.generationTime} seconds
+            </div>
+          </div>
+
+          {/* RTF and Metadata */}
+          <div className="grid grid-cols-2 gap-4 text-sm text-muted-foreground">
+            <div>
+              <span className="font-medium">Real-Time Factor:</span> {generatedTrack.rtf}x
+            </div>
+            <div>
+              <span className="font-medium">Quality Steps:</span> {generatedTrack.metadata?.steps}
+            </div>
+            <div>
+              <span className="font-medium">Seed:</span> {generatedTrack.metadata?.seed}
+            </div>
+            <div>
+              <span className="font-medium">Scheduler:</span> {generatedTrack.metadata?.scheduler}
+            </div>
+            <div>
+              <span className="font-medium">CFG Mode:</span> {generatedTrack.metadata?.cfg}
             </div>
           </div>
         </div>

@@ -1,19 +1,19 @@
+import {
+    Crown,
+    Folder,
+    LogOut,
+    Menu,
+    Mic,
+    Music,
+    Scissors,
+    Shield,
+    User,
+    Wand2,
+    Waves,
+    X
+} from 'lucide-react';
 import React, { useState } from 'react';
 import { Link, useLocation } from 'react-router-dom';
-import { 
-  Music, 
-  Wand2, 
-  Scissors, 
-  Mic, 
-  Waves, 
-  Folder, 
-  User, 
-  Menu,
-  X,
-  Crown,
-  LogOut,
-  Shield
-} from 'lucide-react';
 import { useAuth } from '../hooks/useAuth';
 
 interface LayoutProps {
@@ -74,7 +74,7 @@ const Layout = ({ children }: LayoutProps) => {
     <div className="flex h-screen bg-gradient-to-br from-slate-900 via-purple-900/20 to-slate-900">
       {/* Mobile sidebar overlay */}
       {sidebarOpen && (
-        <div 
+        <div
           className="fixed inset-0 z-40 lg:hidden bg-black/50 backdrop-blur-sm"
           onClick={closeSidebar}
         />
@@ -139,7 +139,7 @@ const Layout = ({ children }: LayoutProps) => {
             {navigation.map((item) => {
               const isActive = location.pathname === item.href;
               const Icon = item.icon;
-              
+
               return (
                 <Link
                   key={item.name}
@@ -147,8 +147,8 @@ const Layout = ({ children }: LayoutProps) => {
                   onClick={closeSidebar}
                   className={`
                     flex items-center space-x-3 px-3 py-2 rounded-lg text-sm font-medium transition-colors
-                    ${isActive 
-                      ? 'bg-primary text-primary-foreground shadow-lg premium-glow' 
+                    ${isActive
+                      ? 'bg-primary text-primary-foreground shadow-lg premium-glow'
                       : 'text-muted-foreground hover:text-foreground hover:bg-accent'
                     }
                   `}

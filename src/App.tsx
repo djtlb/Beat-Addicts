@@ -1,17 +1,16 @@
-import React from 'react';
-import { Routes, Route } from 'react-router-dom';
-import { AuthProvider, useAuth } from './hooks/useAuth';
-import LoginForm from './components/LoginForm';
+import { Route, Routes } from 'react-router-dom';
 import Layout from './components/Layout';
+import LoadingSpinner from './components/LoadingSpinner';
+import LoginForm from './components/LoginForm';
+import { AuthProvider, useAuth } from './hooks/useAuth';
 import Dashboard from './pages/Dashboard';
+import DrumAndBassDemo from './pages/DrumAndBassDemo';
 import Generate from './pages/Generate';
-import StemSplitter from './pages/StemSplitter';
-import LyricsFlow from './pages/LyricsFlow';
 import Harmonies from './pages/Harmonies';
 import Library from './pages/Library';
+import LyricsFlow from './pages/LyricsFlow';
 import Profile from './pages/Profile';
-import DrumAndBassDemo from './pages/DrumAndBassDemo';
-import LoadingSpinner from './components/LoadingSpinner';
+import StemSplitter from './pages/StemSplitter';
 
 function AppContent() {
   const { user, loading } = useAuth();
@@ -57,7 +56,7 @@ function AppContent() {
 
 function App() {
   console.log('App component rendered');
-  
+
   return (
     <AuthProvider>
       <AppContent />
