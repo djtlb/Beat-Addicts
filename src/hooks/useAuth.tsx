@@ -1,5 +1,5 @@
-import React, { createContext, useContext, useEffect, useState, ReactNode } from 'react';
-import { User, Session } from '@supabase/supabase-js';
+import { Session, User } from '@supabase/supabase-js';
+import { createContext, ReactNode, useCallback, useContext, useEffect, useMemo, useState } from 'react';
 import { supabase } from '../lib/supabase';
 
 interface UserSubscription {
@@ -40,15 +40,15 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
   console.log('AuthProvider rendered, user:', user?.email, 'loading:', loading, 'subscription:', subscription);
 
   // Admin emails that get full access
-  const adminEmails = ['sallykamari61@gmail.com'];
+  const adminEmails = useMemo(() => ['sallykamari61@gmail.com'], []);
 
-  const fetchUserSubscription = async (userId: string, userEmail: string) => {
+  const fetchUserSubscription = useCallback(async (userId: string, userEmail: string) => {
     try {
       console.log('Fetching subscription for user:', userEmail, userId);
-      
+
       // Check if user is admin first
       const isAdminUser = adminEmails.includes(userEmail);
-      
+
       if (isAdminUser) {
         console.log('Admin user detected:', userEmail);
         // For admin users, ensure they have studio subscription in database
@@ -80,7 +80,7 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
         } else if (existingSub.subscription_tier !== 'studio') {
           const { error: updateError } = await supabase
             .from('user_subscriptions')
-            .update({ 
+            .update({
               subscription_tier: 'studio',
               status: 'active'
             })
@@ -99,7 +99,7 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
           is_admin: true
         } as UserSubscription;
       }
-      
+
       // For non-admin users, fetch their actual subscription
       const { data, error } = await supabase
         .from('user_subscriptions')
@@ -114,7 +114,7 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
 
       if (!data) {
         console.log('No subscription found, creating default subscription for:', userEmail);
-        
+
         const { data: newSub, error: insertError } = await supabase
           .from('user_subscriptions')
           .insert({
@@ -129,7 +129,7 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
           console.error('Error creating subscription:', insertError);
           return { subscription_tier: 'free', status: 'active', is_admin: false } as UserSubscription;
         }
-        
+
         console.log('Created subscription:', newSub);
         return { ...newSub, is_admin: false };
       }
@@ -139,13 +139,13 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
     } catch (error) {
       console.error('Error in fetchUserSubscription:', error);
       const isAdminUser = adminEmails.includes(userEmail);
-      return { 
-        subscription_tier: isAdminUser ? 'studio' : 'free', 
+      return {
+        subscription_tier: isAdminUser ? 'studio' : 'free',
         status: 'active',
         is_admin: isAdminUser
       } as UserSubscription;
     }
-  };
+  }, [adminEmails]);
 
   useEffect(() => {
     let mounted = true;
@@ -154,13 +154,13 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
     const initializeAuth = async () => {
       try {
         console.log('Initializing authentication...');
-        
+
         // Clear any existing timeout
         if (timeoutId) clearTimeout(timeoutId);
-        
+
         // Set a reasonable timeout for session retrieval
         const sessionPromise = supabase.auth.getSession();
-        
+
         timeoutId = setTimeout(() => {
           console.warn('Session retrieval taking longer than expected, continuing with initialization...');
         }, 3000);
@@ -178,7 +178,7 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
         console.log('Initial session loaded:', session?.user?.email);
         setSession(session);
         setUser(session?.user ?? null);
-        
+
         if (session?.user) {
           try {
             const userSub = await fetchUserSubscription(session.user.id, session.user.email || '');
@@ -190,8 +190,8 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
             console.error('Subscription fetch error:', subError);
             if (mounted) {
               const isAdminUser = adminEmails.includes(session.user.email || '');
-              setSubscription({ 
-                subscription_tier: isAdminUser ? 'studio' : 'free', 
+              setSubscription({
+                subscription_tier: isAdminUser ? 'studio' : 'free',
                 status: 'active',
                 is_admin: isAdminUser
               });
@@ -218,14 +218,25 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
       }
     };
 
+    // Add a fallback timeout to ensure loading doesn't get stuck
+    const fallbackTimeout = setTimeout(() => {
+      if (mounted) {
+        console.warn('Auth initialization timeout - setting loading to false');
+        setLoading(false);
+        setSession(null);
+        setUser(null);
+        setSubscription(null);
+      }
+    }, 10000); // 10 second fallback
+
     initializeAuth();
 
     const { data: { subscription: authSubscription } } = supabase.auth.onAuthStateChange(
       async (event, session) => {
         if (!mounted) return;
-        
+
         console.log('Auth state changed:', event, session?.user?.email);
-        
+
         // Handle different auth events
         if (event === 'SIGNED_OUT') {
           setSession(null);
@@ -233,17 +244,17 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
           setSubscription(null);
           return;
         }
-        
+
         if (event === 'TOKEN_REFRESHED' && session) {
           console.log('Token refreshed successfully');
           setSession(session);
           setUser(session.user);
           return;
         }
-        
+
         setSession(session);
         setUser(session?.user ?? null);
-        
+
         if (session?.user) {
           try {
             const userSub = await fetchUserSubscription(session.user.id, session.user.email || '');
@@ -255,8 +266,8 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
             console.error('Subscription update error:', error);
             if (mounted) {
               const isAdminUser = adminEmails.includes(session.user.email || '');
-              setSubscription({ 
-                subscription_tier: isAdminUser ? 'studio' : 'free', 
+              setSubscription({
+                subscription_tier: isAdminUser ? 'studio' : 'free',
                 status: 'active',
                 is_admin: isAdminUser
               });
@@ -273,14 +284,15 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
     return () => {
       mounted = false;
       if (timeoutId) clearTimeout(timeoutId);
+      clearTimeout(fallbackTimeout);
       authSubscription.unsubscribe();
     };
-  }, []);
+  }, [adminEmails, fetchUserSubscription]);
 
   const signUp = async (email: string, password: string) => {
     try {
-      const { error } = await supabase.auth.signUp({ 
-        email, 
+      const { error } = await supabase.auth.signUp({
+        email,
         password,
         options: {
           emailRedirectTo: window.location.origin
@@ -319,7 +331,7 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
       console.log('Admin access granted for tier:', requiredTier);
       return true;
     }
-    
+
     if (!subscription || subscription.status !== 'active') {
       return requiredTier === 'free';
     }
@@ -327,7 +339,7 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
     const tierHierarchy = { free: 0, pro: 1, studio: 2 };
     const userTierLevel = tierHierarchy[subscription.subscription_tier];
     const requiredTierLevel = tierHierarchy[requiredTier];
-    
+
     const hasAccess = userTierLevel >= requiredTierLevel;
     console.log('Access check:', {
       userTier: subscription.subscription_tier,

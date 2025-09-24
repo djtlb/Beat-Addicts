@@ -38,19 +38,34 @@ export const generateSampleTracks = async () => {
       let result;
       switch (sample.genre) {
         case "pop":
-          result = await aceStepClient.generatePopRadioAnthem(sample.theme, true);
+          result = await aceStepClient.generatePopRadioAnthem(
+            sample.theme,
+            true
+          );
           break;
         case "hip-hop":
-          result = await aceStepClient.generateHipHopRadioSingle(sample.theme, true);
+          result = await aceStepClient.generateHipHopRadioSingle(
+            sample.theme,
+            true
+          );
           break;
         case "rock":
-          result = await aceStepClient.generateRockRadioSingle(sample.theme, true);
+          result = await aceStepClient.generateRockRadioSingle(
+            sample.theme,
+            true
+          );
           break;
         case "country":
-          result = await aceStepClient.generateCountryRadioSong(sample.theme, true);
+          result = await aceStepClient.generateCountryRadioSong(
+            sample.theme,
+            true
+          );
           break;
         default:
-          result = await aceStepClient.generatePopRadioAnthem(sample.theme, true);
+          result = await aceStepClient.generatePopRadioAnthem(
+            sample.theme,
+            true
+          );
       }
 
       sampleUrls[sample.name] = result.audio_url;

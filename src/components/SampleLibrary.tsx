@@ -2,8 +2,18 @@ import { Music, Pause, Play } from 'lucide-react';
 import React, { useEffect, useState } from 'react';
 import { generateSampleTracks, sampleTracks } from '../lib/sampleTracks';
 
+type SampleTrack = {
+  id: string;
+  title: string;
+  genre: string;
+  duration: string;
+  description: string;
+  audioUrl?: string;
+  tags: string[];
+};
+
 interface SampleLibraryProps {
-  onSelectSample?: (track: any) => void;
+  onSelectSample?: (track: SampleTrack) => void;
   className?: string;
 }
 
@@ -11,7 +21,7 @@ const SampleLibrary: React.FC<SampleLibraryProps> = ({
   onSelectSample,
   className = ''
 }) => {
-  const [samples, setSamples] = useState(sampleTracks);
+  const [samples, setSamples] = useState<SampleTrack[]>(sampleTracks as SampleTrack[]);
   const [playingId, setPlayingId] = useState<string | null>(null);
   const [isGeneratingSamples, setIsGeneratingSamples] = useState(false);
 
@@ -47,7 +57,7 @@ const SampleLibrary: React.FC<SampleLibraryProps> = ({
     }
   };
 
-  const handleSelectSample = (track: any) => {
+  const handleSelectSample = (track: SampleTrack) => {
     if (onSelectSample) {
       onSelectSample(track);
     }

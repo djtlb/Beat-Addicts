@@ -1,6 +1,6 @@
+import { Eye, EyeOff, Loader2, Music } from 'lucide-react';
 import React, { useState } from 'react';
 import { useAuth } from '../hooks/useAuth';
-import { Music, Eye, EyeOff, Loader2 } from 'lucide-react';
 
 const LoginForm = () => {
   const [email, setEmail] = useState('');
@@ -31,9 +31,10 @@ const LoginForm = () => {
         await signIn(email, password);
         setSuccess('Login successful!');
       }
-    } catch (err: any) {
+    } catch (err: unknown) {
       console.error('Auth error:', err);
-      setError(err.message || 'Authentication failed');
+      const message = err instanceof Error ? err.message : String(err);
+      setError(message || 'Authentication failed');
     } finally {
       setLoading(false);
     }
@@ -50,13 +51,13 @@ const LoginForm = () => {
             </div>
             <span className="text-2xl font-bold text-gradient">Beat Addicts AI</span>
           </div>
-          
+
           <h2 className="text-3xl font-bold text-foreground">
             {isSignUp ? 'Create Account' : 'Welcome Back'}
           </h2>
           <p className="text-muted-foreground mt-2">
-            {isSignUp 
-              ? 'Start creating music with AI' 
+            {isSignUp
+              ? 'Start creating music with AI'
               : 'Sign in to your account to continue'
             }
           </p>

@@ -1,8 +1,8 @@
-import React, { useState } from 'react';
-import { Radio, Music, Mic, Headphones, Award, Zap } from 'lucide-react';
+import { Award, Headphones, Mic, Music, Radio, Zap } from 'lucide-react';
+import { useState } from 'react';
+import AudioPlayer from '../components/AudioPlayer';
 import { aceStepClient } from '../lib/aceStep';
 import { openaiClient } from '../lib/openai';
-import AudioPlayer from '../components/AudioPlayer';
 
 const RadioReadyGenerator = () => {
   const [selectedGenre, setSelectedGenre] = useState<'pop' | 'hip-hop' | 'rock' | 'country'>('pop');
@@ -11,7 +11,22 @@ const RadioReadyGenerator = () => {
   const [lyrics, setLyrics] = useState('');
   const [isGenerating, setIsGenerating] = useState(false);
   const [isGeneratingLyrics, setIsGeneratingLyrics] = useState(false);
-  const [generatedSong, setGeneratedSong] = useState<any>(null);
+  type GeneratedSong = {
+    id: number | string;
+    title: string;
+    duration: string;
+    theme: string;
+    genre: string;
+    type: string;
+    productionStyle: string;
+    audioUrl: string;
+    generationTime?: number;
+    rtf?: number;
+    lyrics?: string;
+    metadata?: Record<string, unknown>;
+  } | null;
+
+  const [generatedSong, setGeneratedSong] = useState<GeneratedSong>(null);
 
   const radioGenres = [
     {

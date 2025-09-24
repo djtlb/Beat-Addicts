@@ -47,6 +47,32 @@ class OpenAIClient {
     }
 
     try {
+      // If configured to use a local proxy in development, route requests there
+      const useProxy = import.meta.env.VITE_USE_OPENAI_PROXY === "true";
+      if (typeof window !== "undefined" && useProxy) {
+        const proxyOrigin = `${window.location.protocol}//${window.location.hostname}:5178`;
+        const response = await fetch(`${proxyOrigin}/api/openai/chat`, {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+          },
+          body: JSON.stringify({ model, messages, ...options }),
+        });
+
+        if (!response.ok) {
+          const errorData = await response.json().catch(() => ({}));
+          throw new Error(
+            `OpenAI proxy error: ${response.status} - ${
+              errorData.error?.message || "Unknown proxy error"
+            }`
+          );
+        }
+
+        const data = await response.json();
+        return data;
+      }
+
+      // Default: call OpenAI directly (server-side or when proxy disabled)
       const response = await fetch(`${this.baseUrl}/chat/completions`, {
         method: "POST",
         headers: {
@@ -71,9 +97,10 @@ class OpenAIClient {
 
       const data = await response.json();
       return data;
-    } catch (error: any) {
+    } catch (error: unknown) {
       console.error("OpenAI API error:", error);
-      throw new Error(`Failed to fetch response from OpenAI: ${error.message}`);
+      const message = error instanceof Error ? error.message : String(error);
+      throw new Error(`Failed to fetch response from OpenAI: ${message}`);
     }
   }
 

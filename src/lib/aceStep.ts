@@ -1,19 +1,23 @@
-interface GenerationParams {
+// Minimal stub for ACE-Step functionality.
+// This module exports the same types and an `aceStepClient` instance so the
+// rest of the codebase doesn't need to be updated when ACE-Step is removed.
+
+export interface GenerationParams {
   tags: string;
   lyrics?: string;
-  duration: number;
-  steps: number;
-  guidance_scale: number;
-  seed: number;
-  scheduler_type: string;
-  cfg_type: string;
-  use_random_seed: boolean;
+  duration?: number;
+  steps?: number;
+  guidance_scale?: number;
+  seed?: number;
+  scheduler_type?: string;
+  cfg_type?: string;
+  use_random_seed?: boolean;
   genre?: string;
   structure?: string;
   production_style?: string;
 }
 
-interface ACEStepResponse {
+export interface ACEStepResponse {
   audio_url: string;
   duration: number;
   generation_time: number;
@@ -21,994 +25,178 @@ interface ACEStepResponse {
   metadata: {
     tags: string;
     lyrics?: string;
-    params: GenerationParams;
-    structure_analysis?: any;
+    params?: GenerationParams;
+    structure_analysis?: Record<string, unknown>;
   };
 }
 
-interface GenreStructure {
-  name: string;
-  typical_duration: number;
-  structure: string[];
-  bpm_range: [number, number];
-  key_elements: string[];
-  production_techniques: string[];
-  arrangement_pattern: string;
-}
+class ACEStepClientStub {
+  async generateMusic(params: Partial<GenerationParams> & { tags?: string } = {}): Promise<ACEStepResponse> {
+    const duration = params.duration ?? 30; // Shorter demo duration
+    const tags = params.tags ?? "demo-song";
 
-class ACEStepClient {
-  private apiKey: string;
-  private baseUrl: string = "https://api.ace-step.ai/v1";
-
-  // Radio-ready production presets
-  private radioReadyPresets = {
-    pop: {
-      name: "Radio Pop",
-      targetAudience: "Mainstream radio, streaming platforms",
-      keyCharacteristics: [
-        "catchy melody",
-        "radio-friendly vocals",
-        "commercial production",
-        "broad appeal",
-        "memorable hook",
-      ],
-      technicalSpecs: {
-        loudness: "-8 to -10 LUFS",
-        dynamics: "compressed",
-        frequencyRange: "full spectrum",
-        stereoWidth: "wide",
-      },
-    },
-    hipHop: {
-      name: "Radio Hip-Hop/R&B",
-      targetAudience: "Urban contemporary radio, streaming",
-      keyCharacteristics: [
-        "strong vocal presence",
-        "radio-clean lyrics",
-        "professional mixing",
-        "commercial appeal",
-        "catchy chorus",
-      ],
-      technicalSpecs: {
-        loudness: "-8 LUFS",
-        dynamics: "controlled",
-        frequencyRange: "full with emphasis on mids",
-        stereoWidth: "balanced",
-      },
-    },
-    rock: {
-      name: "Modern Rock",
-      targetAudience: "Rock radio, alternative stations",
-      keyCharacteristics: [
-        "powerful guitars",
-        "strong drums",
-        "radio-friendly length",
-        "commercial production",
-        "memorable riffs",
-      ],
-      technicalSpecs: {
-        loudness: "-7 to -9 LUFS",
-        dynamics: "dynamic with compression",
-        frequencyRange: "full rock spectrum",
-        stereoWidth: "wide",
-      },
-    },
-    country: {
-      name: "Country Radio",
-      targetAudience: "Country music stations",
-      keyCharacteristics: [
-        "storytelling lyrics",
-        "acoustic elements",
-        "commercial production",
-        "emotional delivery",
-        "radio-friendly length",
-      ],
-      technicalSpecs: {
-        loudness: "-8 to -10 LUFS",
-        dynamics: "natural with light compression",
-        frequencyRange: "balanced acoustic spectrum",
-        stereoWidth: "natural",
-      },
-    },
-  };
-
-  // Radio-ready song structures
-  private radioReadyStructures = {
-    popAnthem: {
-      name: "Pop Radio Anthem",
-      duration: 210, // 3:30 - perfect radio length
-      structure: [
-        "intro",
-        "verse1",
-        "pre-chorus",
-        "chorus",
-        "verse2",
-        "pre-chorus",
-        "chorus",
-        "bridge",
-        "final-chorus",
-        "outro",
-      ],
-      arrangement:
-        "[intro:8bars] -> [verse:16bars] -> [pre-chorus:8bars] -> [chorus:16bars] -> [verse:16bars] -> [pre-chorus:8bars] -> [chorus:16bars] -> [bridge:16bars] -> [chorus:16bars] -> [outro:8bars]",
-      productionNotes:
-        "Build energy progressively, maximize hook impact, ensure vocal clarity",
-    },
-    hipHopHit: {
-      name: "Hip-Hop Radio Single",
-      duration: 195, // 3:15 - radio-friendly
-      structure: ["intro", "verse1", "hook", "verse2", "hook", "bridge", "hook", "outro"],
-      arrangement: "[intro:8bars] -> [verse:16bars] -> [hook:16bars] -> [verse:16bars] -> [hook:16bars] -> [bridge:8bars] -> [hook:16bars] -> [outro:8bars]",
-      productionNotes: "Focus on vocal presence, clean mix, radio-friendly lyrics, strong beat",
-    },
-    rockSingle: {
-      name: "Rock Radio Single",
-      duration: 240, // 4:00 - rock radio standard
-      structure: ["intro", "verse1", "chorus", "verse2", "chorus", "solo", "final-chorus", "outro"],
-      arrangement: "[intro:16bars] -> [verse:16bars] -> [chorus:16bars] -> [verse:16bars] -> [chorus:16bars] -> [solo:16bars] -> [chorus:16bars] -> [outro:8bars]",
-      productionNotes: "Powerful drums, guitar presence, radio-friendly length, memorable riffs",
-    },
-  };
-
-  // Define genre-specific structures and production techniques
-  private genreStructures: { [key: string]: GenreStructure } = {
-    edm: {
-      name: "EDM/Electronic Dance Music",
-      typical_duration: 240,
-      structure: [
-        "intro",
-        "buildup",
-        "drop",
-        "breakdown",
-        "buildup2",
-        "drop2",
-        "outro",
-      ],
-      bpm_range: [120, 140],
-      key_elements: [
-        "synth leads",
-        "bass drops",
-        "kick patterns",
-        "risers",
-        "white noise sweeps",
-      ],
-      production_techniques: [
-        "sidechain compression",
-        "filter automation",
-        "reverb tails",
-        "pitch bends",
-      ],
-      arrangement_pattern:
-        "[intro:16bars] -> [buildup:16bars] -> [drop:32bars] -> [breakdown:16bars] -> [buildup:16bars] -> [drop:32bars] -> [outro:16bars]",
-    },
-    house: {
-      name: "House Music",
-      typical_duration: 300,
-      structure: [
-        "intro",
-        "verse",
-        "chorus",
-        "breakdown",
-        "verse2",
-        "chorus2",
-        "outro",
-      ],
-      bpm_range: [120, 130],
-      key_elements: [
-        "four-on-floor kick",
-        "hi-hats",
-        "bass groove",
-        "vocal chops",
-        "piano stabs",
-      ],
-      production_techniques: [
-        "groove quantization",
-        "swing timing",
-        "filter sweeps",
-        "vocal processing",
-      ],
-      arrangement_pattern:
-        "[intro:32bars] -> [verse:32bars] -> [chorus:32bars] -> [breakdown:16bars] -> [verse:32bars] -> [chorus:32bars] -> [outro:32bars]",
-    },
-    trap: {
-      name: "Trap",
-      typical_duration: 180,
-      structure: [
-        "intro",
-        "verse",
-        "hook",
-        "verse2",
-        "hook2",
-        "bridge",
-        "hook3",
-        "outro",
-      ],
-      bpm_range: [130, 170],
-      key_elements: [
-        "808 drums",
-        "hi-hat rolls",
-        "snare patterns",
-        "melodic elements",
-        "vocal chops",
-      ],
-      production_techniques: [
-        "pitch automation",
-        "distortion",
-        "stereo imaging",
-        "compression",
-      ],
-      arrangement_pattern:
-        "[intro:8bars] -> [verse:16bars] -> [hook:16bars] -> [verse:16bars] -> [hook:16bars] -> [bridge:8bars] -> [hook:16bars] -> [outro:8bars]",
-    },
-    dubstep: {
-      name: "Dubstep",
-      typical_duration: 210,
-      structure: [
-        "intro",
-        "buildup",
-        "drop",
-        "breakdown",
-        "buildup2",
-        "drop2",
-        "outro",
-      ],
-      bpm_range: [140, 150],
-      key_elements: [
-        "wobble bass",
-        "syncopated drums",
-        "vocal samples",
-        "risers",
-        "impacts",
-      ],
-      production_techniques: [
-        "LFO modulation",
-        "distortion chains",
-        "frequency splitting",
-        "reverb automation",
-      ],
-      arrangement_pattern:
-        "[intro:16bars] -> [buildup:16bars] -> [drop:32bars] -> [breakdown:16bars] -> [buildup:16bars] -> [drop:32bars] -> [outro:16bars]",
-    },
-    techno: {
-      name: "Techno",
-      typical_duration: 360,
-      structure: [
-        "intro",
-        "development",
-        "peak",
-        "breakdown",
-        "rebuild",
-        "climax",
-        "outro",
-      ],
-      bpm_range: [120, 135],
-      key_elements: [
-        "driving kick",
-        "percussion loops",
-        "acid sequences",
-        "atmospheric pads",
-      ],
-      production_techniques: [
-        "loop-based arrangement",
-        "filter automation",
-        "delay effects",
-        "compression",
-      ],
-      arrangement_pattern:
-        "[intro:64bars] -> [development:64bars] -> [peak:32bars] -> [breakdown:32bars] -> [rebuild:32bars] -> [climax:64bars] -> [outro:32bars]",
-    },
-    trance: {
-      name: "Trance",
-      typical_duration: 420,
-      structure: [
-        "intro",
-        "breakdown",
-        "buildup",
-        "climax",
-        "breakdown2",
-        "buildup2",
-        "climax2",
-        "outro",
-      ],
-      bpm_range: [130, 140],
-      key_elements: [
-        "arpeggiated leads",
-        "uplifting melodies",
-        "epic pads",
-        "emotional breakdowns",
-      ],
-      production_techniques: [
-        "gate effects",
-        "reverb automation",
-        "pitch modulation",
-        "layered synthesis",
-      ],
-      arrangement_pattern:
-        "[intro:32bars] -> [breakdown:32bars] -> [buildup:32bars] -> [climax:64bars] -> [breakdown:32bars] -> [buildup:32bars] -> [climax:64bars] -> [outro:32bars]",
-    },
-    "hip-hop": {
-      name: "Hip-Hop",
-      typical_duration: 200,
-      structure: [
-        "intro",
-        "verse",
-        "chorus",
-        "verse2",
-        "chorus2",
-        "bridge",
-        "chorus3",
-        "outro",
-      ],
-      bpm_range: [70, 140],
-      key_elements: [
-        "drum breaks",
-        "bass lines",
-        "melodic samples",
-        "vocal elements",
-      ],
-      production_techniques: [
-        "sampling",
-        "chopping",
-        "layering",
-        "swing quantization",
-      ],
-      arrangement_pattern:
-        "[intro:8bars] -> [verse:16bars] -> [chorus:16bars] -> [verse:16bars] -> [chorus:16bars] -> [bridge:8bars] -> [chorus:16bars] -> [outro:8bars]",
-    },
-    dnb: {
-      name: "Drum & Bass",
-      typical_duration: 300,
-      structure: [
-        "intro",
-        "buildup",
-        "drop",
-        "breakdown",
-        "buildup2",
-        "drop2",
-        "outro",
-      ],
-      bpm_range: [170, 180],
-      key_elements: [
-        "breakbeats",
-        "sub bass",
-        "reese bass",
-        "atmospheric elements",
-      ],
-      production_techniques: [
-        "time-stretching",
-        "chopping breaks",
-        "bass modulation",
-        "reverb processing",
-      ],
-      arrangement_pattern:
-        "[intro:32bars] -> [buildup:16bars] -> [drop:64bars] -> [breakdown:32bars] -> [buildup:16bars] -> [drop:64bars] -> [outro:16bars]",
-    },
-    ambient: {
-      name: "Ambient",
-      typical_duration: 480,
-      structure: ["emergence", "development", "climax", "resolution"],
-      bpm_range: [60, 90],
-      key_elements: [
-        "atmospheric pads",
-        "field recordings",
-        "subtle percussion",
-        "evolving textures",
-      ],
-      production_techniques: [
-        "granular synthesis",
-        "long reverbs",
-        "modulation",
-        "spatial effects",
-      ],
-      arrangement_pattern:
-        "[emergence:120bars] -> [development:120bars] -> [climax:120bars] -> [resolution:120bars]",
-    },
-    rock: {
-      name: "Rock",
-      typical_duration: 240,
-      structure: [
-        "intro",
-        "verse",
-        "chorus",
-        "verse2",
-        "chorus2",
-        "bridge",
-        "solo",
-        "chorus3",
-        "outro",
-      ],
-      bpm_range: [110, 140],
-      key_elements: ["electric guitars", "bass guitar", "drums", "vocals"],
-      production_techniques: [
-        "guitar amp simulation",
-        "drum compression",
-        "harmonic saturation",
-      ],
-      arrangement_pattern:
-        "[intro:8bars] -> [verse:16bars] -> [chorus:16bars] -> [verse:16bars] -> [chorus:16bars] -> [bridge:8bars] -> [solo:16bars] -> [chorus:16bars] -> [outro:8bars]",
-    },
-  };
-
-  constructor() {
-    this.apiKey =
-      import.meta.env.VITE_ACE_STEP_API_KEY ||
-      import.meta.env.OPENAI_API_KEY ||
-      "";
-    console.log(
-      "ACE-Step initialized with API key:",
-      this.apiKey ? "Available" : "Missing"
-    );
-  }
-
-  private detectGenre(tags: string): string {
-    const normalizedTags = tags.toLowerCase();
-
-    // Genre detection logic
-    if (
-      normalizedTags.includes("edm") ||
-      normalizedTags.includes("electronic dance")
-    )
-      return "edm";
-    if (normalizedTags.includes("house")) return "house";
-    if (normalizedTags.includes("trap")) return "trap";
-    if (normalizedTags.includes("dubstep")) return "dubstep";
-    if (normalizedTags.includes("techno")) return "techno";
-    if (normalizedTags.includes("trance")) return "trance";
-    if (normalizedTags.includes("hip-hop") || normalizedTags.includes("rap"))
-      return "hip-hop";
-    if (
-      (normalizedTags.includes("drum") && normalizedTags.includes("bass")) ||
-      normalizedTags.includes("dnb")
-    )
-      return "dnb";
-    if (
-      normalizedTags.includes("ambient") ||
-      normalizedTags.includes("atmospheric")
-    )
-      return "ambient";
-    if (normalizedTags.includes("rock") || normalizedTags.includes("guitar"))
-      return "rock";
-
-    // Default to EDM if no specific genre detected
-    return "edm";
-  }
-
-  private generateStructuredTags(params: GenerationParams): string {
-    const genre = params.genre || this.detectGenre(params.tags);
-    const structure = this.genreStructures[genre] || this.genreStructures.edm;
-
-    console.log("Generating structured tags for genre:", genre, structure);
-
-    // Build comprehensive tags based on genre structure
-    let structuredTags = params.tags;
-
-    // Add BPM specification
-    const avgBpm = Math.round(
-      (structure.bpm_range[0] + structure.bpm_range[1]) / 2
-    );
-    structuredTags += `, ${avgBpm}bpm`;
-
-    // Add key elements
-    structuredTags += `, ${structure.key_elements.join(", ")}`;
-
-    // Add production techniques
-    structuredTags += `, ${structure.production_techniques.join(", ")}`;
-
-    // Add structure-based arrangement
-    structuredTags += `, professional arrangement, ${structure.arrangement_pattern}`;
-
-    // Add genre-specific production elements
-    switch (genre) {
-      case "edm":
-        structuredTags +=
-          ", massive drops, festival ready, main stage energy, build tension, euphoric breakdown, hands in the air moment";
-        break;
-      case "house":
-        structuredTags +=
-          ", groove-based, dancefloor ready, infectious rhythm, deep bassline, uplifting energy";
-        break;
-      case "trap":
-        structuredTags +=
-          ", hard-hitting 808s, crisp snares, melodic elements, modern production, club ready";
-        break;
-      case "dubstep":
-        structuredTags +=
-          ", heavy wobbles, aggressive drops, mechanical rhythms, underground energy, festival bass";
-        break;
-      case "techno":
-        structuredTags +=
-          ", hypnotic loops, industrial sounds, driving force, warehouse atmosphere, peak time energy";
-        break;
-      case "trance":
-        structuredTags +=
-          ", emotional journey, uplifting melodies, epic breakdowns, hands-up moments, euphoric climax";
-        break;
-      case "hip-hop":
-        structuredTags +=
-          ", street credibility, lyrical flow, boom bap elements, modern trap influence, urban atmosphere";
-        break;
-      case "dnb":
-        structuredTags +=
-          ", jungle breaks, rolling basslines, fast-paced energy, underground vibes, liquid elements";
-        break;
-      case "ambient":
-        structuredTags +=
-          ", evolving soundscapes, meditative atmosphere, spatial depth, organic textures, minimal percussion";
-        break;
-      case "rock":
-        structuredTags +=
-          ", power chords, dynamic drums, guitar solos, anthemic chorus, stadium energy";
-        break;
-    }
-
-    return structuredTags;
-  }
-
-  async generateMusic(params: GenerationParams): Promise<ACEStepResponse> {
-    const genre = params.genre || this.detectGenre(params.tags);
-    const structure = this.genreStructures[genre] || this.genreStructures.edm;
-
-    console.log(
-      "ACE-Step generation started with genre structure:",
-      genre,
-      structure
-    );
-
-    // Use structured tags for better generation
-    const enhancedParams = {
-      ...params,
-      tags: this.generateStructuredTags(params),
-      duration: params.duration || structure.typical_duration,
-    };
-
-    console.log("Enhanced generation parameters:", enhancedParams);
-
-    // Always use enhanced simulation for now (since ACE-Step API may not be available)
-    // In production, this would try the real API first
-    console.log(
-      "Using enhanced structured simulation with high-quality audio generation"
-    );
-    return this.simulateStructuredGeneration(enhancedParams, structure);
-  }
-
-  // Radio-ready song generation methods
-  async generateRadioReadySong(params: {
-    genre: 'pop' | 'hip-hop' | 'rock' | 'country';
-    theme: string;
-    targetAudience?: string;
-    includeVocals?: boolean;
-    lyrics?: string;
-  }): Promise<ACEStepResponse> {
-    const preset = this.radioReadyPresets[params.genre];
-    const structure = this.radioReadyStructures[
-      params.genre === 'pop' ? 'popAnthem' :
-      params.genre === 'hip-hop' ? 'hipHopHit' :
-      params.genre === 'rock' ? 'rockSingle' :
-      'popAnthem'
-    ];
-
-    console.log(`🎵 Generating radio-ready ${params.genre} song:`, preset.name);
-
-    // Create radio-optimized tags
-    let radioTags = `${params.theme}, ${preset.keyCharacteristics.join(', ')}, radio-ready, commercial production, professional mixing, broadcast quality`;
-
-    // Add technical specifications
-    radioTags += `, ${preset.technicalSpecs.loudness} loudness, ${preset.technicalSpecs.dynamics} dynamics, ${preset.technicalSpecs.frequencyRange}, ${preset.technicalSpecs.stereoWidth} stereo`;
-
-    // Add structure-specific elements
-    radioTags += `, ${structure.arrangement}, ${structure.productionNotes}`;
-
-    // Add vocal elements if requested
-    if (params.includeVocals) {
-      radioTags += ', professional vocals, radio-friendly singing, clear vocal production, vocal effects';
-    }
-
-    const generationParams: GenerationParams = {
-      tags: radioTags,
-      lyrics: params.includeVocals ? (params.lyrics || 'Auto-generated radio lyrics') : undefined,
-      duration: structure.duration,
-      steps: 30, // Higher quality for radio-ready
-      guidance_scale: 8.0, // Higher guidance for commercial sound
-      seed: Math.floor(Math.random() * 1000000),
-      scheduler_type: 'euler',
-      cfg_type: 'constant',
-      use_random_seed: true,
-      genre: params.genre,
-      production_style: 'professional',
-      structure: 'structured'
-    };
-
-    return this.generateMusic(generationParams);
-  }
-
-  async generatePopRadioAnthem(theme: string, includeVocals: boolean = true, lyrics?: string): Promise<ACEStepResponse> {
-    return this.generateRadioReadySong({
-      genre: 'pop',
-      theme,
-      targetAudience: 'Mainstream radio, streaming platforms',
-      includeVocals,
-      lyrics
-    });
-  }
-
-  async generateHipHopRadioSingle(theme: string, includeVocals: boolean = true, lyrics?: string): Promise<ACEStepResponse> {
-    return this.generateRadioReadySong({
-      genre: 'hip-hop',
-      theme,
-      targetAudience: 'Urban contemporary radio, streaming',
-      includeVocals,
-      lyrics
-    });
-  }
-
-  async generateRockRadioSingle(theme: string, includeVocals: boolean = true, lyrics?: string): Promise<ACEStepResponse> {
-    return this.generateRadioReadySong({
-      genre: 'rock',
-      theme,
-      targetAudience: 'Rock radio, alternative stations',
-      includeVocals,
-      lyrics
-    });
-  }
-
-  async generateCountryRadioSong(theme: string, includeVocals: boolean = true, lyrics?: string): Promise<ACEStepResponse> {
-    return this.generateRadioReadySong({
-      genre: 'country',
-      theme,
-      targetAudience: 'Country music stations',
-      includeVocals,
-      lyrics
-    });
-  }
-
-  // Get radio-ready presets for UI
-  getRadioReadyPresets() {
-    return this.radioReadyPresets;
-  }
-
-  getRadioReadyStructures() {
-    return this.radioReadyStructures;
-  }
-
-  private async simulateStructuredGeneration(
-    params: GenerationParams,
-    structure: GenreStructure
-  ): Promise<ACEStepResponse> {
-    console.log(
-      "Using advanced structured simulation for genre:",
-      structure.name
-    );
-
-    // Calculate realistic generation time based on ACE-Step performance metrics
-    const rtf = 27.27;
-    const generationTime = params.duration / rtf;
-
-    // Simulate processing time
-    await new Promise((resolve) =>
-      setTimeout(resolve, Math.max(3000, generationTime * 1000))
-    );
-
-    // Generate realistic structured audio
-    const audioBuffer = await this.generateGenreStructuredAudio(
-      params,
-      structure
-    );
-    const audioBlob = this.audioBufferToWav(audioBuffer);
-    const audioUrl = URL.createObjectURL(audioBlob);
+    // Generate a simple demo song
+    const audioUrl = await this.generateDemoSong(duration, params.genre || "demo");
 
     return {
       audio_url: audioUrl,
-      duration: params.duration,
-      generation_time: generationTime,
-      rtf: rtf,
+      duration,
+      generation_time: 2.5, // Simulate generation time
+      rtf: 12,
       metadata: {
-        tags: params.tags,
+        tags,
         lyrics: params.lyrics,
-        params: params,
+        params: params as GenerationParams,
         structure_analysis: {
-          genre: structure.name,
-          structure: structure.structure,
-          detected_elements: structure.key_elements,
-          arrangement: structure.arrangement_pattern,
+          genre: params.genre || "demo",
+          demo: true,
+          generated_at: new Date().toISOString(),
         },
-      },
+      };
     };
   }
 
-  private async generateGenreStructuredAudio(
-    params: GenerationParams,
-    structure: GenreStructure
-  ): Promise<AudioBuffer> {
-    const audioContext = new (window.AudioContext ||
-      (window as any).webkitAudioContext)();
-    const sampleRate = audioContext.sampleRate;
-    const duration = Math.min(params.duration, 480);
+  async generateRadioReadySong(opts: {
+    genre: "pop" | "hip-hop" | "rock" | "country";
+    theme: string;
+    includeVocals?: boolean;
+    lyrics?: string;
+  }): Promise<ACEStepResponse> {
+    return this.generateMusic({
+      tags: `${opts.theme}, ${opts.genre}, radio-ready`,
+      lyrics: opts.includeVocals ? opts.lyrics || "" : undefined,
+      duration: 180,
+    });
+  }
 
-    const buffer = audioContext.createBuffer(
-      2,
-      sampleRate * duration,
-      sampleRate
-    );
+  async generatePopRadioAnthem(theme: string, includeVocals = true, lyrics?: string) {
+    return this.generateRadioReadySong({ genre: "pop", theme, includeVocals, lyrics });
+  }
+
+  async generateHipHopRadioSingle(theme: string, includeVocals = true, lyrics?: string) {
+    return this.generateRadioReadySong({ genre: "hip-hop", theme, includeVocals, lyrics });
+  }
+
+  async generateRockRadioSingle(theme: string, includeVocals = true, lyrics?: string) {
+    return this.generateRadioReadySong({ genre: "rock", theme, includeVocals, lyrics });
+  }
+
+  async generateCountryRadioSong(theme: string, includeVocals = true, lyrics?: string) {
+    return this.generateRadioReadySong({ genre: "country", theme, includeVocals, lyrics });
+  }
+
+  async lyricToFlow(lyrics: string, _style: string) {
+    return this.generateMusic({ tags: 'lyrics-to-flow', lyrics, duration: Math.min(lyrics.length / 8 + 60, 240) });
+  }
+
+  async stemSeparation(_audioFile: File) {
+    return { vocals: "", drums: "", bass: "", instruments: "" };
+  }
+
+  getRadioReadyPresets() {
+    return {} as Record<string, unknown>;
+  }
+
+  getRadioReadyStructures() {
+    return {} as Record<string, unknown>;
+  }
+
+  // private async generateDemoSong(duration: number, genre: string): Promise<string> {
+  private async generateDemoSong(duration: number, genre: string) {
+    // Create a simple demo song using Web Audio API
+    const audioContext = new (window.AudioContext || (window as any).webkitAudioContext)();
+    const sampleRate = audioContext.sampleRate;
+    const buffer = audioContext.createBuffer(2, sampleRate * duration, sampleRate);
     const leftChannel = buffer.getChannelData(0);
     const rightChannel = buffer.getChannelData(1);
 
-    console.log(
-      "Generating structured audio for:",
-      structure.name,
-      "Duration:",
-      duration
-    );
-
-    // Calculate structure timing based on arrangement
-    const totalBars = this.calculateTotalBars(structure.arrangement_pattern);
-    const barDuration = duration / totalBars;
-    const beatsPerBar = 4;
-    const bpm = (structure.bpm_range[0] + structure.bpm_range[1]) / 2;
-    const beatDuration = (60 / bpm) * beatsPerBar;
-
-    // Generate structured audio based on genre
+    // Generate a simple melody based on genre
+    const notes = this.getGenreNotes(genre);
+    const bpm = 120;
+    const beatLength = 60 / bpm;
+    
     for (let i = 0; i < buffer.length; i++) {
       const t = i / sampleRate;
-      const barPosition = (t / barDuration) % totalBars;
-      const beatPosition = (t % beatDuration) / beatDuration;
-
-      let signal = 0;
-
-      // Generate genre-specific elements
-      signal += this.generateKickPattern(t, bpm, structure.name);
-      signal += this.generateBassline(t, bpm, structure.name, barPosition);
-      signal += this.generateMelody(t, bpm, structure.name, barPosition);
-      signal += this.generatePercussion(t, bpm, structure.name);
-
-      // Add structure-based dynamics
-      const structureIntensity = this.getStructureIntensity(
-        barPosition,
-        totalBars,
-        structure
-      );
-      signal *= structureIntensity;
-
-      // Add genre-specific effects
-      signal = this.applyGenreEffects(signal, t, structure.name, beatPosition);
-
-      // Apply master processing
-      signal = this.applyMasterProcessing(signal, t, duration);
-
-      leftChannel[i] = signal * 0.8;
-      rightChannel[i] = signal * 0.8 * (1 + Math.sin(t * 7.3) * 0.1); // Stereo width
+      const beat = Math.floor(t / beatLength) % notes.length;
+      const note = notes[beat];
+      
+      // Simple oscillator for melody
+      const frequency = note.frequency;
+      const signal = Math.sin(2 * Math.PI * frequency * t) * 0.3;
+      
+      // Add some harmonics
+      const harmonic1 = Math.sin(2 * Math.PI * frequency * 2 * t) * 0.1;
+      const harmonic2 = Math.sin(2 * Math.PI * frequency * 3 * t) * 0.05;
+      
+      // Add kick drum on beat 1
+      const kick = (beat % 4 === 0 && (t % beatLength) < 0.1) ? 
+        Math.sin(2 * Math.PI * 60 * t) * Math.exp(-(t % beatLength) * 30) * 0.4 : 0;
+      
+      // Add snare on beat 3
+      const snare = (beat % 4 === 2 && (t % beatLength) < 0.05) ? 
+        (Math.random() - 0.5) * Math.exp(-(t % beatLength) * 50) * 0.3 : 0;
+      
+      const totalSignal = signal + harmonic1 + harmonic2 + kick + snare;
+      
+      // Apply fade in/out
+      const fadeTime = 2;
+      const fade = t < fadeTime ? t / fadeTime : (t > duration - fadeTime ? (duration - t) / fadeTime : 1);
+      
+      leftChannel[i] = totalSignal * fade * 0.8;
+      rightChannel[i] = totalSignal * fade * 0.8 * (1 + Math.sin(t * 0.5) * 0.1); // Slight stereo
     }
 
-    return buffer;
+    // Convert to WAV and create blob URL
+    const wavBlob = this.audioBufferToWav(buffer);
+    return URL.createObjectURL(wavBlob);
   }
 
-  private calculateTotalBars(arrangementPattern: string): number {
-    // Extract bar counts from arrangement pattern
-    const matches = arrangementPattern.match(/(\d+)bars/g);
-    if (!matches) return 128; // Default
-
-    return matches.reduce((total, match) => {
-      const bars = parseInt(match.replace("bars", ""));
-      return total + bars;
-    }, 0);
-  }
-
-  private generateKickPattern(t: number, bpm: number, genre: string): number {
-    const beatLength = 60 / bpm;
-    const beat = (t % beatLength) / beatLength;
-    const measure = Math.floor(t / beatLength) % 4;
-
-    let kick = 0;
-
-    switch (genre) {
-      case "EDM/Electronic Dance Music":
-      case "House Music":
-        // Four-on-the-floor
-        if (beat < 0.1)
-          kick = Math.sin(2 * Math.PI * 60 * t) * 0.6 * Math.exp(-beat * 25);
-        break;
-
-      case "Trap":
-        // Trap kick pattern
-        if ((measure === 0 || measure === 2) && beat < 0.1) {
-          kick = Math.sin(2 * Math.PI * 50 * t) * 0.7 * Math.exp(-beat * 20);
-        }
-        break;
-
-      case "Dubstep":
-        // Syncopated dubstep kick
-        if ((measure === 0 || measure === 2.5) && beat < 0.1) {
-          kick = Math.sin(2 * Math.PI * 55 * t) * 0.8 * Math.exp(-beat * 30);
-        }
-        break;
-
-      default:
-        // Standard kick on 1 and 3
-        if ((measure === 0 || measure === 2) && beat < 0.1) {
-          kick = Math.sin(2 * Math.PI * 60 * t) * 0.5 * Math.exp(-beat * 20);
-        }
-    }
-
-    return kick;
-  }
-
-  private generateBassline(
-    t: number,
-    bpm: number,
-    genre: string,
-    barPosition: number
-  ): number {
-    const beatLength = 60 / bpm;
-    let bass = 0;
-
-    switch (genre) {
-      case "EDM/Electronic Dance Music":
-        // Saw wave bass with filter automation
-        bass = this.sawWave(80 + Math.sin(t * 0.5) * 20, t) * 0.3;
-        bass *= 1 + Math.sin(barPosition * 0.1) * 0.5; // Filter sweep
-        break;
-
-      case "Dubstep":
-        // Wobble bass
-        const wobbleSpeed = 16; // Hz
-        const wobble = Math.sin(2 * Math.PI * wobbleSpeed * t);
-        bass = this.sawWave(70 + wobble * 30, t) * 0.4;
-        break;
-
-      case "House Music":
-        // Deep house bass
-        bass =
-          Math.sin(2 * Math.PI * (65 + Math.sin(t * 0.25) * 15) * t) * 0.25;
-        break;
-
-      case "Trap":
-        // 808 bass
-        bass = Math.sin(2 * Math.PI * (55 + Math.sin(t * 2) * 10) * t) * 0.4;
-        bass *= Math.exp(-((t % beatLength) / beatLength) * 3); // Decay
-        break;
-
-      default:
-        bass = Math.sin(2 * Math.PI * (70 + Math.sin(t * 0.3) * 15) * t) * 0.2;
-    }
-
-    return bass;
-  }
-
-  private generateMelody(
-    t: number,
-    bpm: number,
-    genre: string,
-    barPosition: number
-  ): number {
-    let melody = 0;
-
-    switch (genre) {
-      case "EDM/Electronic Dance Music":
-        // Supersaw lead
-        melody += this.sawWave(440 + Math.sin(t * 0.2) * 100, t) * 0.15;
-        melody += this.sawWave(440 * 1.01 + Math.sin(t * 0.2) * 100, t) * 0.15; // Detune
-        break;
-
-      case "Trance":
-        // Arpeggiator
-        const arpPattern = [440, 550, 660, 880];
-        const arpIndex = Math.floor((t * 8) % arpPattern.length);
-        melody = Math.sin(2 * Math.PI * arpPattern[arpIndex] * t) * 0.2;
-        break;
-
-      case "House Music":
-        // Piano stabs
-        if (Math.floor(t * 2) % 8 === 0) {
-          melody =
-            Math.sin(2 * Math.PI * 330 * t) * 0.3 * Math.exp(-((t % 0.5) * 4));
-        }
-        break;
-
-      default:
-        melody =
-          Math.sin(2 * Math.PI * (330 + Math.sin(t * 0.4) * 50) * t) * 0.1;
-    }
-
-    return melody;
-  }
-
-  private generatePercussion(t: number, bpm: number, genre: string): number {
-    const beatLength = 60 / bpm;
-    const beat = (t % beatLength) / beatLength;
-    const measure = Math.floor(t / beatLength) % 4;
-
-    let perc = 0;
-
-    // Hi-hats
-    if (genre === "Trap") {
-      // Trap hi-hat rolls
-      const rollSpeed = 32;
-      if (Math.sin(t * rollSpeed) > 0.7) {
-        perc += (Math.random() - 0.5) * 0.1 * Math.exp(-beat * 40);
-      }
-    } else {
-      // Standard hi-hats on off-beats
-      if (beat > 0.45 && beat < 0.55) {
-        perc += (Math.random() - 0.5) * 0.05;
-      }
-    }
-
-    // Snare
-    if ((measure === 1 || measure === 3) && beat < 0.05) {
-      perc += (Math.random() - 0.5) * 0.2 * Math.exp(-beat * 50);
-    }
-
-    return perc;
-  }
-
-  private sawWave(frequency: number, t: number): number {
-    const period = 1 / frequency;
-    const phase = (t % period) / period;
-    return 2 * phase - 1;
-  }
-
-  private getStructureIntensity(
-    barPosition: number,
-    totalBars: number,
-    structure: GenreStructure
-  ): number {
-    const normalizedPosition = barPosition / totalBars;
-
-    // Create intensity curve based on song structure
-    if (structure.name.includes("EDM") || structure.name.includes("Dubstep")) {
-      // Build-up and drop structure
-      if (normalizedPosition < 0.2) return 0.3 + normalizedPosition * 2; // Build
-      if (normalizedPosition < 0.4) return 1.0; // Drop
-      if (normalizedPosition < 0.6) return 0.4; // Breakdown
-      if (normalizedPosition < 0.8)
-        return 0.5 + (normalizedPosition - 0.6) * 2.5; // Build 2
-      return 1.0; // Drop 2
-    }
-
-    // Standard song structure
-    return 0.5 + Math.sin(normalizedPosition * Math.PI * 2) * 0.3;
-  }
-
-  private applyGenreEffects(
-    signal: number,
-    t: number,
-    genre: string,
-    beatPosition: number
-  ): number {
-    switch (genre) {
-      case "EDM/Electronic Dance Music":
-        // Sidechain compression effect
-        const sidechainEnv = 1 - Math.exp(-beatPosition * 15) * 0.7;
-        signal *= sidechainEnv;
-        break;
-
-      case "Dubstep":
-        // Heavy distortion
-        signal = Math.tanh(signal * 3) * 0.7;
-        break;
-
-      case "Ambient":
-        // Reverb simulation
-        signal += signal * Math.sin(t * 0.1) * 0.3;
-        break;
-    }
-
-    return signal;
-  }
-
-  private applyMasterProcessing(
-    signal: number,
-    t: number,
-    duration: number
-  ): number {
-    // Master limiter
-    signal = Math.tanh(signal * 1.2) * 0.8;
-
-    // Fade in/out
-    const fadeTime = 2.0;
-    if (t < fadeTime) signal *= t / fadeTime;
-    if (t > duration - fadeTime) signal *= (duration - t) / fadeTime;
-
-    return signal;
+  private getGenreNotes(genre: string) {
+    // Simple note sequences for different genres
+    const noteSequences = {
+      pop: [
+        { frequency: 261.63, name: 'C4' }, // C
+        { frequency: 293.66, name: 'D4' }, // D
+        { frequency: 329.63, name: 'E4' }, // E
+        { frequency: 349.23, name: 'F4' }, // F
+        { frequency: 392.00, name: 'G4' }, // G
+        { frequency: 440.00, name: 'A4' }, // A
+        { frequency: 493.88, name: 'B4' }, // B
+        { frequency: 523.25, name: 'C5' }, // C5
+      ],
+      hiphop: [
+        { frequency: 146.83, name: 'D3' }, // D3
+        { frequency: 164.81, name: 'E3' }, // E3
+        { frequency: 174.61, name: 'F3' }, // F3
+        { frequency: 196.00, name: 'G3' }, // G3
+        { frequency: 220.00, name: 'A3' }, // A3
+        { frequency: 246.94, name: 'B3' }, // B3
+        { frequency: 261.63, name: 'C4' }, // C4
+        { frequency: 293.66, name: 'D4' }, // D4
+      ],
+      rock: [
+        { frequency: 82.41, name: 'E2' }, // E2
+        { frequency: 110.00, name: 'A2' }, // A2
+        { frequency: 146.83, name: 'D3' }, // D3
+        { frequency: 196.00, name: 'G3' }, // G3
+        { frequency: 246.94, name: 'B3' }, // B3
+        { frequency: 329.63, name: 'E4' }, // E4
+        { frequency: 392.00, name: 'G4' }, // G4
+        { frequency: 493.88, name: 'B4' }, // B4
+      ],
+      demo: [
+        { frequency: 261.63, name: 'C4' }, // C4
+        { frequency: 329.63, name: 'E4' }, // E4
+        { frequency: 392.00, name: 'G4' }, // G4
+        { frequency: 523.25, name: 'C5' }, // C5
+        { frequency: 659.25, name: 'E5' }, // E5
+        { frequency: 783.99, name: 'G5' }, // G5
+        { frequency: 1046.50, name: 'C6' }, // C6
+        { frequency: 1318.51, name: 'E6' }, // E6
+      ]
+    };
+    
+    return noteSequences[genre as keyof typeof noteSequences] || noteSequences.demo;
   }
 
   private audioBufferToWav(buffer: AudioBuffer): Blob {
@@ -1043,10 +231,7 @@ class ACEStepClient {
     let offset = 44;
     for (let i = 0; i < length; i++) {
       for (let channel = 0; channel < numberOfChannels; channel++) {
-        const sample = Math.max(
-          -1,
-          Math.min(1, buffer.getChannelData(channel)[i])
-        );
+        const sample = Math.max(-1, Math.min(1, buffer.getChannelData(channel)[i]));
         view.setInt16(offset, sample * 0x7fff, true);
         offset += 2;
       }
@@ -1054,166 +239,6 @@ class ACEStepClient {
 
     return new Blob([arrayBuffer], { type: "audio/wav" });
   }
-
-  async lyricToFlow(lyrics: string, style: string): Promise<ACEStepResponse> {
-    console.log("Lyric-to-flow generation with ACE-Step structure:", {
-      lyrics: lyrics.substring(0, 50),
-      style,
-    });
-
-    const genre =
-      style.includes("rap") || style.includes("hip-hop") ? "hip-hop" : "edm";
-
-    const params: GenerationParams = {
-      tags: `vocal, ${style}, lyrics, professional vocal production, clear articulation`,
-      lyrics: lyrics,
-      duration: Math.min(lyrics.length / 8 + 60, 240),
-      steps: 27,
-      guidance_scale: 7.5,
-      seed: Math.floor(Math.random() * 1000000),
-      scheduler_type: "euler",
-      cfg_type: "constant",
-      use_random_seed: true,
-      genre: genre,
-    };
-
-    return this.generateMusic(params);
-  }
-
-  async stemSeparation(audioFile: File): Promise<{
-    vocals: string;
-    drums: string;
-    bass: string;
-    instruments: string;
-  }> {
-    console.log("ACE-Step stem separation started for:", audioFile.name);
-
-    // Simulate advanced stem separation processing
-    await new Promise((resolve) => setTimeout(resolve, 6000));
-
-    // Generate separate stem audio files with realistic structure
-    const stems = {
-      vocals: await this.generateAdvancedStemAudio("vocals"),
-      drums: await this.generateAdvancedStemAudio("drums"),
-      bass: await this.generateAdvancedStemAudio("bass"),
-      instruments: await this.generateAdvancedStemAudio("instruments"),
-    };
-
-    console.log("ACE-Step stem separation completed");
-    return stems;
-  }
-
-  private async generateAdvancedStemAudio(stemType: string): Promise<string> {
-    const audioContext = new (window.AudioContext ||
-      (window as any).webkitAudioContext)();
-    const sampleRate = audioContext.sampleRate;
-    const duration = 180; // 3 minutes
-
-    const buffer = audioContext.createBuffer(
-      2,
-      sampleRate * duration,
-      sampleRate
-    );
-    const leftChannel = buffer.getChannelData(0);
-    const rightChannel = buffer.getChannelData(1);
-
-    console.log("Generating advanced stem audio for:", stemType);
-
-    for (let i = 0; i < buffer.length; i++) {
-      const t = i / sampleRate;
-      let signal = 0;
-
-      switch (stemType) {
-        case "vocals":
-          // Realistic vocal formants and harmonics
-          signal =
-            Math.sin(2 * Math.PI * (220 + Math.sin(t * 2) * 80) * t) * 0.4;
-          signal +=
-            Math.sin(2 * Math.PI * (440 + Math.sin(t * 1.5) * 60) * t) * 0.2;
-          signal +=
-            Math.sin(2 * Math.PI * (880 + Math.sin(t * 0.8) * 40) * t) * 0.1;
-          // Add vocal-like modulation
-          signal *= 1 + Math.sin(t * 5.2) * 0.3;
-          break;
-
-        case "drums":
-          // Advanced drum patterns with multiple elements
-          const beat = (t * 2.2) % 1; // ~132 BPM
-          const measure = Math.floor(t * 2.2) % 4;
-
-          // Kick drum
-          if (beat < 0.05) {
-            signal +=
-              Math.sin(2 * Math.PI * 60 * t) * 0.8 * Math.exp(-beat * 25);
-          }
-
-          // Snare on 2 and 4
-          if ((measure === 1 || measure === 3) && beat < 0.03) {
-            signal += (Math.random() - 0.5) * 0.4 * Math.exp(-beat * 60);
-          }
-
-          // Hi-hats
-          if (Math.sin(t * 16) > 0.6) {
-            signal += (Math.random() - 0.5) * 0.15 * Math.exp(-beat * 80);
-          }
-
-          // Cymbals and fills
-          if (Math.random() < 0.001) {
-            signal += (Math.random() - 0.5) * 0.3;
-          }
-          break;
-
-        case "bass":
-          // Deep, rich bass with harmonics
-          const fundamental = 65 + Math.sin(t * 0.4) * 25;
-          signal = Math.sin(2 * Math.PI * fundamental * t) * 0.6;
-          signal += Math.sin(2 * Math.PI * fundamental * 2 * t) * 0.2; // Second harmonic
-          signal += Math.sin(2 * Math.PI * fundamental * 3 * t) * 0.1; // Third harmonic
-
-          // Add sub-bass
-          signal += Math.sin(2 * Math.PI * (fundamental / 2) * t) * 0.3;
-          break;
-
-        case "instruments":
-          // Multi-layered instrumental arrangement
-          // Lead melody
-          signal +=
-            Math.sin(2 * Math.PI * (330 + Math.sin(t * 0.3) * 100) * t) * 0.25;
-
-          // Chord progression (triads)
-          const chordRoot = 220 + Math.sin(t * 0.1) * 50;
-          signal += Math.sin(2 * Math.PI * chordRoot * t) * 0.15;
-          signal += Math.sin(2 * Math.PI * chordRoot * 1.25 * t) * 0.12; // Major third
-          signal += Math.sin(2 * Math.PI * chordRoot * 1.5 * t) * 0.1; // Fifth
-
-          // Arpeggiation
-          const arpNotes = [1, 1.25, 1.5, 2];
-          const arpIndex = Math.floor((t * 4) % arpNotes.length);
-          signal +=
-            Math.sin(2 * Math.PI * (chordRoot * arpNotes[arpIndex]) * t) * 0.08;
-
-          // Pad/atmosphere
-          signal +=
-            Math.sin(2 * Math.PI * (110 + Math.sin(t * 0.05) * 20) * t) * 0.06;
-          break;
-      }
-
-      // Apply realistic envelope and dynamics
-      const envelope = Math.sin((Math.PI * t) / duration) * 0.9 + 0.1;
-      signal *= envelope;
-
-      // Add subtle variations and humanization
-      signal *= 1 + Math.sin(t * 13.7) * 0.05;
-
-      // Stereo processing
-      leftChannel[i] = signal * 0.9;
-      rightChannel[i] = signal * 0.9 * (1 + Math.sin(t * 7.1) * 0.1);
-    }
-
-    const wavBlob = this.audioBufferToWav(buffer);
-    return URL.createObjectURL(wavBlob);
-  }
 }
 
-export const aceStepClient = new ACEStepClient();
-export type { ACEStepResponse, GenerationParams };
+export const aceStepClient = new ACEStepClientStub();
