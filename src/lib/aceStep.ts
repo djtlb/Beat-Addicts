@@ -36,7 +36,7 @@ class ACEStepClientStub {
     const tags = params.tags ?? "demo-song";
 
     // Generate a simple demo song
-    const audioUrl = await this.generateDemoSong(duration, params.genre || "demo");
+    const audioUrl = "demo-audio-url"; // Placeholder for now
 
     return {
       audio_url: audioUrl,
@@ -114,34 +114,34 @@ class ACEStepClientStub {
     const notes = this.getGenreNotes(genre);
     const bpm = 120;
     const beatLength = 60 / bpm;
-    
+
     for (let i = 0; i < buffer.length; i++) {
       const t = i / sampleRate;
       const beat = Math.floor(t / beatLength) % notes.length;
       const note = notes[beat];
-      
+
       // Simple oscillator for melody
       const frequency = note.frequency;
       const signal = Math.sin(2 * Math.PI * frequency * t) * 0.3;
-      
+
       // Add some harmonics
       const harmonic1 = Math.sin(2 * Math.PI * frequency * 2 * t) * 0.1;
       const harmonic2 = Math.sin(2 * Math.PI * frequency * 3 * t) * 0.05;
-      
+
       // Add kick drum on beat 1
-      const kick = (beat % 4 === 0 && (t % beatLength) < 0.1) ? 
+      const kick = (beat % 4 === 0 && (t % beatLength) < 0.1) ?
         Math.sin(2 * Math.PI * 60 * t) * Math.exp(-(t % beatLength) * 30) * 0.4 : 0;
-      
+
       // Add snare on beat 3
-      const snare = (beat % 4 === 2 && (t % beatLength) < 0.05) ? 
+      const snare = (beat % 4 === 2 && (t % beatLength) < 0.05) ?
         (Math.random() - 0.5) * Math.exp(-(t % beatLength) * 50) * 0.3 : 0;
-      
+
       const totalSignal = signal + harmonic1 + harmonic2 + kick + snare;
-      
+
       // Apply fade in/out
       const fadeTime = 2;
       const fade = t < fadeTime ? t / fadeTime : (t > duration - fadeTime ? (duration - t) / fadeTime : 1);
-      
+
       leftChannel[i] = totalSignal * fade * 0.8;
       rightChannel[i] = totalSignal * fade * 0.8 * (1 + Math.sin(t * 0.5) * 0.1); // Slight stereo
     }
@@ -195,7 +195,7 @@ class ACEStepClientStub {
         { frequency: 1318.51, name: 'E6' }, // E6
       ]
     };
-    
+
     return noteSequences[genre as keyof typeof noteSequences] || noteSequences.demo;
   }
 
@@ -230,7 +230,7 @@ class ACEStepClientStub {
     // Convert float samples to 16-bit PCM
     let offset = 44;
     for (let i = 0; i < length; i++) {
-      for (let channel = 0; channel < numberOfChannels; channel++) {
+      for (let channel = 0;
         const sample = Math.max(-1, Math.min(1, buffer.getChannelData(channel)[i]));
         view.setInt16(offset, sample * 0x7fff, true);
         offset += 2;
