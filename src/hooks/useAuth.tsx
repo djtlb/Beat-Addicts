@@ -19,6 +19,8 @@ interface AuthContextType {
   signOut: () => Promise<void>;
   hasAccess: (requiredTier: 'free' | 'pro' | 'studio') => boolean;
   isAdmin: () => boolean;
+  refreshUserData: () => Promise<void>;
+  forceRefresh: () => void;
 }
 
 const AuthContext = createContext<AuthContextType | undefined>(undefined);
@@ -36,72 +38,163 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
   const [session, setSession] = useState<Session | null>(null);
   const [subscription, setSubscription] = useState<UserSubscription | null>(null);
   const [loading, setLoading] = useState(true);
+  const [refreshCounter, setRefreshCounter] = useState(0);
 
   console.log('🔐 AuthProvider state:', { 
     userEmail: user?.email, 
     loading, 
-    subscriptionTier: subscription?.subscription_tier 
+    subscriptionTier: subscription?.subscription_tier,
+    isAdminFlag: subscription?.is_admin,
+    refreshCounter
   });
 
-  // Admin emails with full access
+  // Admin emails with full access - hardcoded for reliability
   const adminEmails = ['sallykamari61@gmail.com'];
+
+  const checkAdminStatus = async (userId: string, userEmail: string): Promise<boolean> => {
+    console.log('👑 Checking comprehensive admin status for:', userEmail);
+    
+    // 1. Check hardcoded admin list (highest priority)
+    if (adminEmails.includes(userEmail)) {
+      console.log('✅ User is in hardcoded admin list');
+      return true;
+    }
+
+    // 2. Check profiles table for is_admin flag
+    try {
+      const { data: profileData, error: profileError } = await supabase
+        .from('profiles')
+        .select('is_admin, role')
+        .eq('id', userId)
+        .maybeSingle();
+
+      if (!profileError && profileData) {
+        if (profileData.is_admin === true) {
+          console.log('✅ User has is_admin=true in profiles');
+          return true;
+        }
+        if (profileData.role === 'admin') {
+          console.log('✅ User has role=admin in profiles');
+          return true;
+        }
+      }
+    } catch (error) {
+      console.log('⚠️ Error checking profiles table:', error);
+    }
+
+    // 3. Check admin_users table
+    try {
+      const { data: adminUserData, error: adminUserError } = await supabase
+        .from('admin_users')
+        .select('email')
+        .eq('email', userEmail)
+        .maybeSingle();
+
+      if (!adminUserError && adminUserData) {
+        console.log('✅ User found in admin_users table');
+        return true;
+      }
+    } catch (error) {
+      console.log('⚠️ Error checking admin_users table:', error);
+    }
+
+    // 4. Check auth metadata
+    try {
+      const { data: { user: authUser } } = await supabase.auth.getUser();
+      if (authUser?.user_metadata?.is_admin === true) {
+        console.log('✅ User has is_admin=true in auth metadata');
+        return true;
+      }
+    } catch (error) {
+      console.log('⚠️ Error checking auth metadata:', error);
+    }
+
+    console.log('❌ User is not admin by any method');
+    return false;
+  };
+
+  const ensureAdminSetup = async (userId: string, userEmail: string): Promise<void> => {
+    const isAdmin = await checkAdminStatus(userId, userEmail);
+    
+    if (isAdmin) {
+      console.log('🛡️ Setting up admin user in all systems...');
+      
+      // Ensure profile exists with admin flag
+      try {
+        const { error: profileError } = await supabase
+          .from('profiles')
+          .upsert({
+            id: userId,
+            email: userEmail,
+            is_admin: true,
+            role: 'admin',
+            updated_at: new Date().toISOString()
+          }, {
+            onConflict: 'id'
+          });
+
+        if (profileError) {
+          console.error('❌ Error updating profile:', profileError);
+        } else {
+          console.log('✅ Profile updated with admin privileges');
+        }
+      } catch (error) {
+        console.log('⚠️ Could not update profile (table might not exist)');
+      }
+
+      // Ensure admin_users table entry
+      try {
+        const { error: adminUsersError } = await supabase
+          .from('admin_users')
+          .upsert({
+            email: userEmail
+          }, {
+            onConflict: 'email'
+          });
+
+        if (adminUsersError) {
+          console.error('❌ Error updating admin_users:', adminUsersError);
+        } else {
+          console.log('✅ admin_users table updated');
+        }
+      } catch (error) {
+        console.log('⚠️ Could not update admin_users (table might not exist)');
+      }
+
+      // Ensure studio subscription
+      try {
+        const { error: subscriptionError } = await supabase
+          .from('user_subscriptions')
+          .upsert({
+            user_id: userId,
+            subscription_tier: 'studio',
+            status: 'active'
+          }, {
+            onConflict: 'user_id'
+          });
+
+        if (subscriptionError) {
+          console.error('❌ Error updating subscription:', subscriptionError);
+        } else {
+          console.log('✅ Studio subscription ensured');
+        }
+      } catch (error) {
+        console.log('⚠️ Could not update subscription (table might not exist)');
+      }
+    }
+  };
 
   const fetchUserSubscription = async (userId: string, userEmail: string): Promise<UserSubscription> => {
     try {
-      console.log('📊 Fetching subscription for:', userEmail);
+      console.log('📊 Fetching comprehensive subscription for:', userEmail);
       
-      // Check if user is admin
-      const isAdminUser = adminEmails.includes(userEmail);
+      // Check admin status first
+      const isAdminUser = await checkAdminStatus(userId, userEmail);
       
       if (isAdminUser) {
-        console.log('👑 Admin user detected:', userEmail);
+        console.log('👑 Admin user detected, ensuring full setup...');
+        await ensureAdminSetup(userId, userEmail);
         
-        try {
-          // Try to fetch existing subscription
-          const { data: existingSub, error: fetchError } = await supabase
-            .from('user_subscriptions')
-            .select('*')
-            .eq('user_id', userId)
-            .maybeSingle();
-
-          if (fetchError) {
-            console.log('⚠️ Error fetching admin subscription (will create):', fetchError.message);
-          }
-
-          // Create or update admin subscription
-          if (!existingSub) {
-            const { error: insertError } = await supabase
-              .from('user_subscriptions')
-              .insert({
-                user_id: userId,
-                subscription_tier: 'studio',
-                status: 'active'
-              });
-
-            if (insertError) {
-              console.error('❌ Error creating admin subscription:', insertError.message);
-            } else {
-              console.log('✅ Created studio subscription for admin');
-            }
-          } else if (existingSub.subscription_tier !== 'studio') {
-            const { error: updateError } = await supabase
-              .from('user_subscriptions')
-              .update({ 
-                subscription_tier: 'studio',
-                status: 'active'
-              })
-              .eq('user_id', userId);
-
-            if (updateError) {
-              console.error('❌ Error updating admin subscription:', updateError.message);
-            } else {
-              console.log('✅ Updated admin to studio subscription');
-            }
-          }
-        } catch (dbError) {
-          console.warn('⚠️ Database error for admin user, using fallback:', dbError);
-        }
-
         return {
           subscription_tier: 'studio',
           status: 'active',
@@ -109,7 +202,7 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
         };
       }
       
-      // For non-admin users, fetch their subscription
+      // For non-admin users, fetch their subscription normally
       const { data, error } = await supabase
         .from('user_subscriptions')
         .select('subscription_tier, status, expires_at')
@@ -139,11 +232,9 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
           return { subscription_tier: 'free', status: 'active', is_admin: false };
         }
         
-        console.log('✅ Created subscription:', newSub);
         return { ...newSub, is_admin: false };
       }
 
-      console.log('✅ Fetched subscription:', data);
       return { ...data, is_admin: false };
       
     } catch (error) {
@@ -157,18 +248,35 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
     }
   };
 
+  const refreshUserData = async () => {
+    if (!user) return;
+    
+    console.log('🔄 Refreshing user data...');
+    try {
+      const userSub = await fetchUserSubscription(user.id, user.email || '');
+      setSubscription(userSub);
+      console.log('✅ User data refreshed:', userSub);
+    } catch (error) {
+      console.error('❌ Error refreshing user data:', error);
+    }
+  };
+
+  const forceRefresh = () => {
+    console.log('🔄 Force refreshing auth context...');
+    setRefreshCounter(prev => prev + 1);
+  };
+
   useEffect(() => {
     let mounted = true;
 
     const initializeAuth = async () => {
       try {
-        console.log('🚀 Initializing authentication...');
+        console.log('🚀 Initializing authentication... (refresh:', refreshCounter, ')');
         
         const { data: { session }, error } = await supabase.auth.getSession();
 
         if (error) {
           console.error('❌ Session error:', error.message);
-          // Continue anyway, don't throw
         }
 
         if (!mounted) return;
@@ -181,7 +289,7 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
           const userSub = await fetchUserSubscription(session.user.id, session.user.email || '');
           if (mounted) {
             setSubscription(userSub);
-            console.log('✅ Subscription set:', userSub.subscription_tier);
+            console.log('✅ Subscription set:', userSub);
           }
         } else {
           if (mounted) {
@@ -233,7 +341,7 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
             const userSub = await fetchUserSubscription(session.user.id, session.user.email || '');
             if (mounted) {
               setSubscription(userSub);
-              console.log('✅ Subscription updated:', userSub.subscription_tier);
+              console.log('✅ Subscription updated:', userSub);
             }
           } catch (error) {
             console.error('❌ Subscription update error:', error);
@@ -258,7 +366,7 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
       mounted = false;
       authSubscription.unsubscribe();
     };
-  }, []);
+  }, [refreshCounter]); // Add refreshCounter as dependency
 
   const signUp = async (email: string, password: string) => {
     try {
@@ -312,8 +420,15 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
   };
 
   const hasAccess = (requiredTier: 'free' | 'pro' | 'studio'): boolean => {
-    if (subscription?.is_admin) {
+    // Admin always has access to everything
+    if (subscription?.is_admin === true) {
       console.log('👑 Admin access granted for tier:', requiredTier);
+      return true;
+    }
+
+    // Check hardcoded admin emails as fallback
+    if (user?.email && adminEmails.includes(user.email)) {
+      console.log('👑 Hardcoded admin access granted for tier:', requiredTier);
       return true;
     }
     
@@ -337,7 +452,17 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
   };
 
   const isAdmin = (): boolean => {
-    return subscription?.is_admin === true;
+    // Check subscription admin flag first
+    if (subscription?.is_admin === true) {
+      return true;
+    }
+
+    // Fallback to hardcoded admin emails
+    if (user?.email && adminEmails.includes(user.email)) {
+      return true;
+    }
+
+    return false;
   };
 
   const value: AuthContextType = {
@@ -349,7 +474,9 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
     signUp,
     signOut,
     hasAccess,
-    isAdmin
+    isAdmin,
+    refreshUserData,
+    forceRefresh
   };
 
   return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;

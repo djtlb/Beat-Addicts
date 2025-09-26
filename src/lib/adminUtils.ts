@@ -8,58 +8,198 @@ export interface UserDiagnostics {
   profileData: any;
   isAdminInProfile: boolean;
   isAdminInAuthMetadata: boolean;
+  isInAdminUsersTable: boolean;
+  isHardcodedAdmin: boolean;
+  hasStudioSubscription: boolean;
   recommendedAction: string;
   errors: string[];
 }
 
+// Hardcoded admin emails for reliability
+const ADMIN_EMAILS = ['sallykamari61@gmail.com'];
+
 export const diagnoseUserAdminStatus = async (userId: string): Promise<UserDiagnostics> => {
-  console.log('🔍 Diagnosing admin status for user:', userId);
+  console.log('🔍 Comprehensive admin diagnosis for user:', userId);
   
   const errors: string[] = [];
+  let email = '';
+  let authMetadata = {};
+  let isHardcodedAdmin = false;
 
   // Get user from auth
   const { data: { user }, error: authError } = await supabase.auth.getUser();
   if (authError) {
     console.error('❌ Auth error:', authError);
     errors.push(`Auth error: ${authError.message}`);
+  } else if (user) {
+    email = user.email || '';
+    authMetadata = user.user_metadata || {};
+    isHardcodedAdmin = ADMIN_EMAILS.includes(email);
   }
 
-  // Check profile table
-  const { data: profileData, error: profileError } = await supabase
-    .from('profiles')
-    .select('*')
-    .eq('id', userId)
-    .single();
+  // Check profiles table
+  let profileExists = false;
+  let profileData = null;
+  let isAdminInProfile = false;
 
-  if (profileError && profileError.code !== 'PGRST116') {
-    errors.push(`Profile error: ${profileError.message}`);
+  try {
+    const { data: profile, error: profileError } = await supabase
+      .from('profiles')
+      .select('*')
+      .eq('id', userId)
+      .maybeSingle();
+
+    if (profileError && profileError.code !== 'PGRST116') {
+      errors.push(`Profile error: ${profileError.message}`);
+    } else if (profile) {
+      profileExists = true;
+      profileData = profile;
+      isAdminInProfile = profile.is_admin === true || profile.role === 'admin';
+    }
+  } catch (error) {
+    errors.push(`Profile table access error: ${error}`);
   }
+
+  // Check admin_users table
+  let isInAdminUsersTable = false;
+  if (email) {
+    try {
+      const { data: adminUser, error: adminUserError } = await supabase
+        .from('admin_users')
+        .select('email')
+        .eq('email', email)
+        .maybeSingle();
+
+      if (adminUserError && adminUserError.code !== 'PGRST116') {
+        errors.push(`Admin users table error: ${adminUserError.message}`);
+      } else if (adminUser) {
+        isInAdminUsersTable = true;
+      }
+    } catch (error) {
+      errors.push(`Admin users table access error: ${error}`);
+    }
+  }
+
+  // Check subscription
+  let hasStudioSubscription = false;
+  try {
+    const { data: subscription, error: subError } = await supabase
+      .from('user_subscriptions')
+      .select('subscription_tier, status')
+      .eq('user_id', userId)
+      .maybeSingle();
+
+    if (subError && subError.code !== 'PGRST116') {
+      errors.push(`Subscription error: ${subError.message}`);
+    } else if (subscription) {
+      hasStudioSubscription = subscription.subscription_tier === 'studio' && subscription.status === 'active';
+    }
+  } catch (error) {
+    errors.push(`Subscription table access error: ${error}`);
+  }
+
+  const isAdminInAuthMetadata = authMetadata?.is_admin === true;
 
   const diagnostics: UserDiagnostics = {
     userId,
-    email: user?.email || 'Unknown',
-    authMetadata: user?.user_metadata || {},
-    profileExists: !profileError && !!profileData,
-    profileData: profileData || null,
-    isAdminInProfile: profileData?.is_admin === true,
-    isAdminInAuthMetadata: user?.user_metadata?.is_admin === true,
+    email,
+    authMetadata,
+    profileExists,
+    profileData,
+    isAdminInProfile,
+    isAdminInAuthMetadata,
+    isInAdminUsersTable,
+    isHardcodedAdmin,
+    hasStudioSubscription,
     recommendedAction: 'none',
     errors
   };
 
   // Determine recommended action
-  if (!diagnostics.profileExists) {
+  const isAdminByAnyMethod = isHardcodedAdmin || isAdminInProfile || isAdminInAuthMetadata || isInAdminUsersTable;
+  
+  if (isHardcodedAdmin && (!profileExists || !isAdminInProfile || !isInAdminUsersTable || !hasStudioSubscription)) {
+    diagnostics.recommendedAction = 'setup_full_admin';
+  } else if (!profileExists) {
     diagnostics.recommendedAction = 'create_profile';
-  } else if (!diagnostics.isAdminInProfile && !diagnostics.isAdminInAuthMetadata) {
-    diagnostics.recommendedAction = 'set_admin_flag';
-  } else if (diagnostics.isAdminInAuthMetadata && !diagnostics.isAdminInProfile) {
-    diagnostics.recommendedAction = 'sync_profile_from_auth';
-  } else if (!diagnostics.isAdminInAuthMetadata && diagnostics.isAdminInProfile) {
-    diagnostics.recommendedAction = 'sync_auth_from_profile';
+  } else if (isAdminByAnyMethod && !isAdminInProfile) {
+    diagnostics.recommendedAction = 'set_admin_in_profile';
+  } else if (isAdminByAnyMethod && !isInAdminUsersTable) {
+    diagnostics.recommendedAction = 'add_to_admin_table';
+  } else if (isAdminByAnyMethod && !hasStudioSubscription) {
+    diagnostics.recommendedAction = 'ensure_studio_subscription';
   }
 
-  console.log('📊 Admin diagnostics:', diagnostics);
+  console.log('📊 Comprehensive admin diagnostics:', diagnostics);
   return diagnostics;
+};
+
+export const setupFullAdminAccess = async (userId: string, email: string): Promise<boolean> => {
+  console.log('🛡️ Setting up full admin access for:', email);
+
+  try {
+    // 1. Ensure profile with admin privileges
+    const { error: profileError } = await supabase
+      .from('profiles')
+      .upsert({
+        id: userId,
+        email: email,
+        is_admin: true,
+        role: 'admin',
+        subscription_tier: 'studio',
+        created_at: new Date().toISOString(),
+        updated_at: new Date().toISOString()
+      }, {
+        onConflict: 'id'
+      });
+
+    if (profileError) {
+      console.error('❌ Error setting up profile:', profileError);
+      return false;
+    }
+    console.log('✅ Profile admin setup complete');
+
+    // 2. Ensure admin_users table entry
+    const { error: adminUsersError } = await supabase
+      .from('admin_users')
+      .upsert({
+        email: email,
+        created_at: new Date().toISOString()
+      }, {
+        onConflict: 'email'
+      });
+
+    if (adminUsersError) {
+      console.error('❌ Error setting up admin_users:', adminUsersError);
+      return false;
+    }
+    console.log('✅ admin_users table setup complete');
+
+    // 3. Ensure studio subscription
+    const { error: subscriptionError } = await supabase
+      .from('user_subscriptions')
+      .upsert({
+        user_id: userId,
+        subscription_tier: 'studio',
+        status: 'active',
+        created_at: new Date().toISOString(),
+        updated_at: new Date().toISOString()
+      }, {
+        onConflict: 'user_id'
+      });
+
+    if (subscriptionError) {
+      console.error('❌ Error setting up subscription:', subscriptionError);
+      return false;
+    }
+    console.log('✅ Studio subscription setup complete');
+
+    console.log('🎉 Full admin access setup successful');
+    return true;
+  } catch (error) {
+    console.error('💥 Error in full admin setup:', error);
+    return false;
+  }
 };
 
 export const createUserProfile = async (userId: string, email: string, isAdmin: boolean = false) => {
@@ -71,6 +211,8 @@ export const createUserProfile = async (userId: string, email: string, isAdmin: 
       id: userId,
       email: email,
       is_admin: isAdmin,
+      role: isAdmin ? 'admin' : 'user',
+      subscription_tier: isAdmin ? 'studio' : 'free',
       created_at: new Date().toISOString(),
       updated_at: new Date().toISOString()
     }, {
@@ -94,6 +236,7 @@ export const setUserAdminStatus = async (userId: string, isAdmin: boolean) => {
     .from('profiles')
     .update({ 
       is_admin: isAdmin,
+      role: isAdmin ? 'admin' : 'user',
       updated_at: new Date().toISOString()
     })
     .eq('id', userId);
@@ -118,35 +261,42 @@ export const checkAndFixCurrentUserAdmin = async (): Promise<boolean> => {
 
   try {
     const diagnostics = await diagnoseUserAdminStatus(user.id);
-    
     console.log('📋 Current diagnostics:', diagnostics);
 
-    // Auto-fix based on diagnostics
+    // Check if user should be admin (hardcoded list)
+    const shouldBeAdmin = ADMIN_EMAILS.includes(user.email || '');
+    
+    if (shouldBeAdmin) {
+      console.log('🛠️ User should be admin, setting up full access...');
+      const success = await setupFullAdminAccess(user.id, user.email!);
+      return success;
+    }
+
+    // Auto-fix based on diagnostics for other cases
     switch (diagnostics.recommendedAction) {
+      case 'setup_full_admin':
+        console.log('🛠️ Setting up full admin access...');
+        return await setupFullAdminAccess(user.id, user.email!);
+        
       case 'create_profile':
-        console.log('🛠️ Creating missing profile with admin privileges...');
-        await createUserProfile(user.id, user.email!, true);
+        console.log('🛠️ Creating missing profile...');
+        await createUserProfile(user.id, user.email!, shouldBeAdmin);
         break;
         
-      case 'set_admin_flag':
-        console.log('🛠️ Setting admin flag for current user...');
+      case 'set_admin_in_profile':
+        console.log('🛠️ Setting admin flag in profile...');
         await setUserAdminStatus(user.id, true);
         break;
         
-      case 'sync_profile_from_auth':
-        console.log('🛠️ Syncing profile from auth metadata...');
-        await setUserAdminStatus(user.id, diagnostics.isAdminInAuthMetadata);
-        break;
-        
       default:
-        console.log('✅ No action needed, admin status is correct');
+        console.log('✅ No action needed');
     }
 
     // Re-check after fixes
     const updatedDiagnostics = await diagnoseUserAdminStatus(user.id);
     console.log('📊 Updated diagnostics:', updatedDiagnostics);
     
-    return updatedDiagnostics.isAdminInProfile;
+    return updatedDiagnostics.isAdminInProfile || updatedDiagnostics.isHardcodedAdmin;
   } catch (error) {
     console.error('❌ Error in admin status check/fix:', error);
     return false;
@@ -164,26 +314,16 @@ export const emergencyGrantAdminAccess = async (): Promise<boolean> => {
   }
 
   try {
-    // Force create/update profile with admin privileges
-    const { error: upsertError } = await supabase
-      .from('profiles')
-      .upsert({
-        id: user.id,
-        email: user.email!,
-        is_admin: true,
-        created_at: new Date().toISOString(),
-        updated_at: new Date().toISOString()
-      }, {
-        onConflict: 'id'
-      });
-
-    if (upsertError) {
-      console.error('❌ Error in emergency admin grant:', upsertError);
+    // Force setup full admin access regardless of current state
+    const success = await setupFullAdminAccess(user.id, user.email!);
+    
+    if (success) {
+      console.log('✅ Emergency admin access granted successfully');
+      return true;
+    } else {
+      console.error('❌ Emergency admin access failed');
       return false;
     }
-
-    console.log('✅ Emergency admin access granted successfully');
-    return true;
   } catch (error) {
     console.error('❌ Emergency admin grant failed:', error);
     return false;
@@ -220,7 +360,8 @@ export const addToAdminUsersTable = async (email: string): Promise<boolean> => {
     const { error } = await supabase
       .from('admin_users')
       .upsert({
-        email: email
+        email: email,
+        created_at: new Date().toISOString()
       }, {
         onConflict: 'email'
       });
@@ -236,4 +377,9 @@ export const addToAdminUsersTable = async (email: string): Promise<boolean> => {
     console.error('❌ Error in admin users table addition:', error);
     return false;
   }
+};
+
+// Check if user is hardcoded admin
+export const isHardcodedAdmin = (email: string): boolean => {
+  return ADMIN_EMAILS.includes(email);
 };
