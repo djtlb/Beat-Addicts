@@ -10,91 +10,28 @@ import {
   Music,
   Clock,
   Calendar,
-  Tag
+  Tag,
+  Plus,
+  Wand2
 } from 'lucide-react';
+import { Link } from 'react-router-dom';
 
 const Library = () => {
   const [viewMode, setViewMode] = useState('grid');
   const [searchQuery, setSearchQuery] = useState('');
   const [selectedFilter, setSelectedFilter] = useState('all');
 
-  console.log('Library component rendered');
+  console.log('Library component rendered - showing only real user content');
 
-  const projects = [
-    {
-      id: 1,
-      title: 'Summer Vibes Beat',
-      type: 'AI Generated',
-      duration: '3:24',
-      createdAt: '2024-01-15',
-      tags: ['Hip Hop', 'Energetic', 'Summer'],
-      size: '4.2 MB',
-      plays: 127,
-      isPlaying: false
-    },
-    {
-      id: 2,
-      title: 'Rap Flow Demo',
-      type: 'Lyrics to Flow',
-      duration: '2:45',
-      createdAt: '2024-01-14',
-      tags: ['Rap', 'Eminem Style', 'Fast'],
-      size: '3.8 MB',
-      plays: 89,
-      isPlaying: true
-    },
-    {
-      id: 3,
-      title: 'Harmony Layers',
-      type: 'AI Harmonies',
-      duration: '4:12',
-      createdAt: '2024-01-12',
-      tags: ['Gospel', 'Vocals', 'Layered'],
-      size: '5.6 MB',
-      plays: 156,
-      isPlaying: false
-    },
-    {
-      id: 4,
-      title: 'Instrumental Stems',
-      type: 'Stem Separation',
-      duration: '3:58',
-      createdAt: '2024-01-10',
-      tags: ['Rock', 'Stems', 'Separated'],
-      size: '15.2 MB',
-      plays: 203,
-      isPlaying: false
-    },
-    {
-      id: 5,
-      title: 'Chill Lo-Fi Beat',
-      type: 'AI Generated',
-      duration: '2:33',
-      createdAt: '2024-01-08',
-      tags: ['Lo-Fi', 'Chill', 'Study'],
-      size: '3.1 MB',
-      plays: 312,
-      isPlaying: false
-    },
-    {
-      id: 6,
-      title: 'Pop Harmony Stack',
-      type: 'AI Harmonies',
-      duration: '3:15',
-      createdAt: '2024-01-06',
-      tags: ['Pop', 'Harmonies', 'Modern'],
-      size: '4.7 MB',
-      plays: 95,
-      isPlaying: false
-    }
-  ];
+  // No fake/placeholder songs - only real user-generated content will be displayed
+  const projects = []; // Empty array - will be populated with actual user generations from Supabase
 
   const filterOptions = [
-    { id: 'all', label: 'All Projects', count: projects.length },
-    { id: 'ai-generated', label: 'AI Generated', count: projects.filter(p => p.type === 'AI Generated').length },
-    { id: 'lyrics-flow', label: 'Lyrics to Flow', count: projects.filter(p => p.type === 'Lyrics to Flow').length },
-    { id: 'harmonies', label: 'AI Harmonies', count: projects.filter(p => p.type === 'AI Harmonies').length },
-    { id: 'stems', label: 'Stem Separation', count: projects.filter(p => p.type === 'Stem Separation').length }
+    { id: 'all', label: 'All Projects', count: 0 },
+    { id: 'ai-generated', label: 'AI Generated', count: 0 },
+    { id: 'lyrics-flow', label: 'Lyrics to Flow', count: 0 },
+    { id: 'harmonies', label: 'AI Harmonies', count: 0 },
+    { id: 'stems', label: 'Stem Separation', count: 0 }
   ];
 
   const filteredProjects = projects.filter(project => {
@@ -123,7 +60,7 @@ const Library = () => {
         <div>
           <h1 className="text-3xl font-bold text-gradient">Music Library</h1>
           <p className="text-muted-foreground">
-            Manage and organize your AI-generated music projects
+            Your collection of AI-generated music projects
           </p>
         </div>
         <div className="flex items-center space-x-2">
@@ -152,7 +89,7 @@ const Library = () => {
           <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-muted-foreground w-4 h-4" />
           <input
             type="text"
-            placeholder="Search projects, tags, or types..."
+            placeholder="Search your music projects..."
             value={searchQuery}
             onChange={(e) => setSearchQuery(e.target.value)}
             className="w-full pl-10 pr-4 py-2 bg-input border border-border rounded-lg focus:outline-none focus:ring-2 focus:ring-primary"
@@ -174,145 +111,61 @@ const Library = () => {
         </div>
       </div>
 
-      {/* Projects Grid/List */}
-      {viewMode === 'grid' ? (
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-          {filteredProjects.map((project) => (
-            <div key={project.id} className="glass-card p-6 rounded-xl hover:shadow-lg hover:shadow-purple-500/10 transition-all group">
-              <div className="flex items-start justify-between mb-4">
-                <div className="w-12 h-12 bg-gradient-to-br from-purple-500 to-pink-500 rounded-lg flex items-center justify-center relative">
-                  <Music className="w-6 h-6 text-white" />
-                  {project.isPlaying && (
-                    <div className="absolute -top-1 -right-1 w-4 h-4 bg-green-500 rounded-full flex items-center justify-center">
-                      <Play className="w-2 h-2 text-white fill-white" />
-                    </div>
-                  )}
-                </div>
-                <button className="p-1 opacity-0 group-hover:opacity-100 hover:bg-white/10 rounded transition-all">
-                  <MoreHorizontal className="w-4 h-4" />
-                </button>
-              </div>
-              
-              <div className="space-y-3">
-                <div>
-                  <h3 className="font-semibold text-foreground line-clamp-1">{project.title}</h3>
-                  <p className="text-sm text-muted-foreground">{project.type}</p>
-                </div>
-                
-                <div className="flex items-center justify-between text-xs text-muted-foreground">
-                  <div className="flex items-center space-x-1">
-                    <Clock className="w-3 h-3" />
-                    <span>{project.duration}</span>
-                  </div>
-                  <div className="flex items-center space-x-1">
-                    <Calendar className="w-3 h-3" />
-                    <span>{formatDate(project.createdAt)}</span>
-                  </div>
-                </div>
-                
-                <div className="flex flex-wrap gap-1">
-                  {project.tags.slice(0, 2).map((tag, index) => (
-                    <span key={index} className="px-2 py-1 bg-primary/20 text-primary text-xs rounded-full">
-                      {tag}
-                    </span>
-                  ))}
-                  {project.tags.length > 2 && (
-                    <span className="px-2 py-1 bg-muted text-muted-foreground text-xs rounded-full">
-                      +{project.tags.length - 2}
-                    </span>
-                  )}
-                </div>
-                
-                <div className="flex items-center justify-between pt-2">
-                  <div className="flex items-center space-x-2">
-                    <button className="p-2 bg-primary hover:bg-primary/90 rounded-full transition-colors">
-                      <Play className="w-4 h-4 text-primary-foreground" />
-                    </button>
-                    <button className="p-2 hover:bg-white/10 rounded-full transition-colors">
-                      <Download className="w-4 h-4" />
-                    </button>
-                  </div>
-                  <div className="text-xs text-muted-foreground">
-                    {project.plays} plays
-                  </div>
-                </div>
-              </div>
-            </div>
-          ))}
+      {/* Empty State - Always shown since no fake content */}
+      <div className="text-center py-20">
+        <div className="w-24 h-24 bg-gradient-to-br from-purple-500 to-pink-500 rounded-full flex items-center justify-center mx-auto mb-6 shadow-2xl shadow-purple-500/20">
+          <Music className="w-12 h-12 text-white" />
         </div>
-      ) : (
-        <div className="glass-card rounded-xl overflow-hidden">
-          <div className="space-y-0">
-            {filteredProjects.map((project, index) => (
-              <div 
-                key={project.id}
-                className={`flex items-center justify-between p-4 hover:bg-white/5 transition-colors ${
-                  index !== filteredProjects.length - 1 ? 'border-b border-border' : ''
-                }`}
-              >
-                <div className="flex items-center space-x-4 flex-1">
-                  <div className="relative">
-                    <div className="w-12 h-12 bg-gradient-to-br from-purple-500 to-pink-500 rounded-lg flex items-center justify-center">
-                      <Music className="w-6 h-6 text-white" />
-                    </div>
-                    {project.isPlaying && (
-                      <div className="absolute -top-1 -right-1 w-4 h-4 bg-green-500 rounded-full flex items-center justify-center">
-                        <Play className="w-2 h-2 text-white fill-white" />
-                      </div>
-                    )}
-                  </div>
-                  <div className="flex-1 min-w-0">
-                    <h3 className="font-medium text-foreground truncate">{project.title}</h3>
-                    <div className="flex items-center space-x-4 text-sm text-muted-foreground">
-                      <span>{project.type}</span>
-                      <span>•</span>
-                      <span>{project.duration}</span>
-                      <span>•</span>
-                      <span>{formatDate(project.createdAt)}</span>
-                      <span>•</span>
-                      <span>{project.size}</span>
-                    </div>
-                  </div>
-                  <div className="hidden md:flex items-center space-x-2">
-                    {project.tags.slice(0, 3).map((tag, index) => (
-                      <span key={index} className="px-2 py-1 bg-primary/20 text-primary text-xs rounded-full">
-                        {tag}
-                      </span>
-                    ))}
-                  </div>
-                  <div className="text-sm text-muted-foreground hidden lg:block">
-                    {project.plays} plays
-                  </div>
-                </div>
-                <div className="flex items-center space-x-2 ml-4">
-                  <button className="p-2 hover:bg-white/10 rounded-lg transition-colors">
-                    <Play className="w-4 h-4" />
-                  </button>
-                  <button className="p-2 hover:bg-white/10 rounded-lg transition-colors">
-                    <Download className="w-4 h-4" />
-                  </button>
-                  <button className="p-2 hover:bg-white/10 rounded-lg transition-colors">
-                    <MoreHorizontal className="w-4 h-4" />
-                  </button>
-                </div>
-              </div>
-            ))}
-          </div>
+        <h3 className="text-2xl font-bold mb-4 text-gradient">Your Music Library is Empty</h3>
+        <p className="text-muted-foreground mb-8 max-w-md mx-auto">
+          Start creating amazing AI-generated music to build your personal library. Every track you generate will appear here.
+        </p>
+        
+        <div className="flex flex-col sm:flex-row gap-4 justify-center items-center">
+          <Link 
+            to="/generate" 
+            className="bg-gradient-to-r from-purple-600 to-pink-600 hover:from-purple-700 hover:to-pink-700 text-white px-6 py-3 rounded-lg font-medium transition-all duration-300 flex items-center space-x-2 shadow-lg hover:shadow-purple-500/25"
+          >
+            <Wand2 className="w-5 h-5" />
+            <span>Generate Your First Track</span>
+          </Link>
+          
+          <Link 
+            to="/lyrics-flow" 
+            className="border border-border hover:bg-accent text-foreground px-6 py-3 rounded-lg font-medium transition-all duration-300 flex items-center space-x-2"
+          >
+            <Plus className="w-5 h-5" />
+            <span>Create Lyrics Flow</span>
+          </Link>
         </div>
-      )}
 
-      {/* Empty State */}
-      {filteredProjects.length === 0 && (
-        <div className="text-center py-12">
-          <div className="w-16 h-16 bg-muted rounded-full flex items-center justify-center mx-auto mb-4">
-            <Music className="w-8 h-8 text-muted-foreground" />
+        {/* Feature Preview */}
+        <div className="mt-12 grid grid-cols-1 md:grid-cols-3 gap-6 max-w-4xl mx-auto">
+          <div className="glass-card p-6 rounded-xl text-center">
+            <div className="w-12 h-12 bg-purple-500/20 rounded-lg flex items-center justify-center mx-auto mb-4">
+              <Wand2 className="w-6 h-6 text-purple-400" />
+            </div>
+            <h4 className="font-semibold mb-2">AI Generation</h4>
+            <p className="text-sm text-muted-foreground">Create unique beats and melodies with advanced AI</p>
           </div>
-          <h3 className="text-lg font-medium mb-2">No projects found</h3>
-          <p className="text-muted-foreground">
-            {searchQuery ? `No results for "${searchQuery}"` : 'Start creating music to build your library'}
-          </p>
+          
+          <div className="glass-card p-6 rounded-xl text-center">
+            <div className="w-12 h-12 bg-cyan-500/20 rounded-lg flex items-center justify-center mx-auto mb-4">
+              <Music className="w-6 h-6 text-cyan-400" />
+            </div>
+            <h4 className="font-semibold mb-2">Stem Separation</h4>
+            <p className="text-sm text-muted-foreground">Isolate individual instruments from any track</p>
+          </div>
+          
+          <div className="glass-card p-6 rounded-xl text-center">
+            <div className="w-12 h-12 bg-emerald-500/20 rounded-lg flex items-center justify-center mx-auto mb-4">
+              <Tag className="w-6 h-6 text-emerald-400" />
+            </div>
+            <h4 className="font-semibold mb-2">Smart Organization</h4>
+            <p className="text-sm text-muted-foreground">Automatically organize tracks by genre and style</p>
+          </div>
         </div>
-      )}
+      </div>
     </div>
   );
 };

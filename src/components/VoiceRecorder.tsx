@@ -1,5 +1,6 @@
 import React, { useState, useRef, useEffect } from 'react';
 import { Mic, Square, Play, Pause, Trash2, Download, Clock } from 'lucide-react';
+import { RecordingIcon, LiveMicIcon } from './MusicIcons';
 
 interface VoiceRecorderProps {
   onRecordingComplete: (audioBlob: Blob, duration: number) => void;
@@ -164,7 +165,7 @@ const VoiceRecorder: React.FC<VoiceRecorderProps> = ({
       <div className="glass-card p-6 rounded-xl">
         <div className="text-center space-y-4">
           <div className="flex items-center justify-center space-x-2 mb-4">
-            <Mic className="w-5 h-5 text-primary" />
+            <LiveMicIcon isLive={isRecording} />
             <h3 className="text-lg font-semibold">Voice Recording</h3>
           </div>
           
@@ -176,17 +177,24 @@ const VoiceRecorder: React.FC<VoiceRecorderProps> = ({
           {!audioBlob ? (
             <div className="space-y-4">
               {!isRecording ? (
-                <button
-                  onClick={startRecording}
-                  className="w-16 h-16 bg-red-500 hover:bg-red-600 rounded-full flex items-center justify-center transition-colors"
-                >
-                  <Mic className="w-8 h-8 text-white" />
-                </button>
+                <div className="flex justify-center">
+                  <button
+                    onClick={startRecording}
+                    className="w-16 h-16 bg-red-500 hover:bg-red-600 rounded-full flex items-center justify-center transition-colors relative group"
+                  >
+                    <Mic className="w-8 h-8 text-white" />
+                    <div className="absolute inset-0 border-2 border-red-300 rounded-full animate-ping group-hover:animate-none"></div>
+                  </button>
+                </div>
               ) : (
                 <div className="space-y-4">
+                  <div className="flex justify-center">
+                    <RecordingIcon isRecording={true} />
+                  </div>
+                  
                   <button
                     onClick={stopRecording}
-                    className="w-16 h-16 bg-gray-500 hover:bg-gray-600 rounded-full flex items-center justify-center transition-colors"
+                    className="w-16 h-16 bg-gray-500 hover:bg-gray-600 rounded-full flex items-center justify-center transition-colors mx-auto"
                   >
                     <Square className="w-8 h-8 text-white" />
                   </button>

@@ -12,7 +12,10 @@ import {
   X,
   Crown,
   LogOut,
-  Shield
+  Shield,
+  Sliders,
+  DollarSign,
+  Settings
 } from 'lucide-react';
 import { useAuth } from '../hooks/useAuth';
 
@@ -25,18 +28,28 @@ const Layout = ({ children }: LayoutProps) => {
   const location = useLocation();
   const { user, subscription, signOut, isAdmin } = useAuth();
 
-  console.log('Layout component rendered, current path:', location.pathname, 'subscription:', subscription, 'isAdmin:', isAdmin());
+  console.log('✅ Layout component rendered, current path:', location.pathname, 'subscription:', subscription, 'isAdmin:', isAdmin());
 
   const navigation = [
     { name: 'Dashboard', href: '/', icon: Music },
     { name: 'AI Generate', href: '/generate', icon: Wand2 },
+    { name: 'Studio', href: '/studio', icon: Sliders, premium: true },
     { name: 'DnB Demo', href: '/demo-dnb', icon: Music, demo: true },
     { name: 'Stem Splitter', href: '/stem-splitter', icon: Scissors },
     { name: 'Lyrics Flow', href: '/lyrics-flow', icon: Mic },
     { name: 'Harmonies', href: '/harmonies', icon: Waves },
     { name: 'Library', href: '/library', icon: Folder },
     { name: 'Profile', href: '/profile', icon: User },
+    { name: 'Pricing', href: '/pricing', icon: DollarSign },
   ];
+
+  // Add admin routes if user is admin
+  if (isAdmin && isAdmin()) {
+    navigation.push(
+      { name: 'Admin', href: '/admin', icon: Shield },
+      { name: 'Production', href: '/production-readiness', icon: Settings }
+    );
+  }
 
   const closeSidebar = () => setSidebarOpen(false);
 
@@ -60,14 +73,15 @@ const Layout = ({ children }: LayoutProps) => {
 
   const handleSignOut = async () => {
     try {
+      console.log('🔓 Signing out user');
       await signOut();
-      console.log('User signed out successfully');
+      console.log('✅ User signed out successfully');
     } catch (error) {
-      console.error('Sign out error:', error);
+      console.error('❌ Sign out error:', error);
     }
   };
 
-  const userIsAdmin = isAdmin();
+  const userIsAdmin = isAdmin && isAdmin();
   const displayTier = subscription?.subscription_tier || 'free';
 
   return (
@@ -155,6 +169,12 @@ const Layout = ({ children }: LayoutProps) => {
                 >
                   <Icon className="w-5 h-5" />
                   <span>{item.name}</span>
+                  {item.premium && (
+                    <Crown className="w-3 h-3 text-yellow-400" />
+                  )}
+                  {item.demo && (
+                    <span className="px-1 text-xs bg-cyan-500/20 text-cyan-400 rounded">DEMO</span>
+                  )}
                 </Link>
               );
             })}

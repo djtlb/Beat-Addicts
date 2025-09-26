@@ -1,5 +1,6 @@
 import React, { useState, useRef, useEffect } from 'react';
 import { Play, Pause, Volume2, VolumeX, Download, SkipBack, SkipForward } from 'lucide-react';
+import UniversalAudioPlayer from './UniversalAudioPlayer';
 
 interface AudioPlayerProps {
   audioUrl?: string;
@@ -22,281 +23,23 @@ const AudioPlayer: React.FC<AudioPlayerProps> = ({
   className = '',
   showWaveform = true
 }) => {
-  const [isPlaying, setIsPlaying] = useState(false);
-  const [currentTime, setCurrentTime] = useState(0);
-  const [totalDuration, setTotalDuration] = useState(0);
-  const [volume, setVolume] = useState(0.7);
-  const [isMuted, setIsMuted] = useState(false);
-  const [isLoading, setIsLoading] = useState(false);
-  const [audioError, setAudioError] = useState(false);
+  console.log('🎵 AudioPlayer wrapper using UniversalAudioPlayer for:', title);
 
-  const audioRef = useRef<HTMLAudioElement | null>(null);
-  const progressRef = useRef<HTMLDivElement>(null);
-
-  console.log('AudioPlayer rendered:', { audioUrl, isPlaying, currentTime, audioError });
-
-  useEffect(() => {
-    const audio = audioRef.current;
-    if (!audio) return;
-
-    const handleTimeUpdate = () => {
-      setCurrentTime(audio.currentTime);
-    };
-
-    const handleDurationChange = () => {
-      setTotalDuration(audio.duration);
-    };
-
-    const handleLoadStart = () => {
-      setIsLoading(true);
-      setAudioError(false);
-    };
-
-    const handleCanPlay = () => {
-      setIsLoading(false);
-      setAudioError(false);
-    };
-
-    const handleError = (e: Event) => {
-      console.error('Audio error:', e);
-      setIsLoading(false);
-      setAudioError(true);
-      setIsPlaying(false);
-    };
-
-    const handleEnded = () => {
-      setIsPlaying(false);
-      setCurrentTime(0);
-      onEnded?.();
-    };
-
-    audio.addEventListener('timeupdate', handleTimeUpdate);
-    audio.addEventListener('durationchange', handleDurationChange);
-    audio.addEventListener('loadstart', handleLoadStart);
-    audio.addEventListener('canplay', handleCanPlay);
-    audio.addEventListener('error', handleError);
-    audio.addEventListener('ended', handleEnded);
-
-    return () => {
-      audio.removeEventListener('timeupdate', handleTimeUpdate);
-      audio.removeEventListener('durationchange', handleDurationChange);
-      audio.removeEventListener('loadstart', handleLoadStart);
-      audio.removeEventListener('canplay', handleCanPlay);
-      audio.removeEventListener('error', handleError);
-      audio.removeEventListener('ended', handleEnded);
-    };
-  }, [onEnded]);
-
-  useEffect(() => {
-    if (audioRef.current) {
-      audioRef.current.volume = isMuted ? 0 : volume;
-    }
-  }, [volume, isMuted]);
-
-  const togglePlay = async () => {
-    if (!audioRef.current || !audioUrl || audioError) {
-      console.log('Cannot play: no audio element, URL, or error state');
-      return;
-    }
-
-    try {
-      if (isPlaying) {
-        audioRef.current.pause();
-        setIsPlaying(false);
-        onPause?.();
-      } else {
-        const playPromise = audioRef.current.play();
-        if (playPromise !== undefined) {
-          await playPromise;
-          setIsPlaying(true);
-          onPlay?.();
-        }
-      }
-    } catch (error) {
-      console.error('Audio playback error:', error);
-      setAudioError(true);
-      setIsPlaying(false);
-    }
-  };
-
-  const handleProgressClick = (e: React.MouseEvent<HTMLDivElement>) => {
-    if (!audioRef.current || !progressRef.current || audioError) return;
-
-    const rect = progressRef.current.getBoundingClientRect();
-    const percent = (e.clientX - rect.left) / rect.width;
-    const newTime = percent * totalDuration;
-    
-    audioRef.current.currentTime = newTime;
-    setCurrentTime(newTime);
-  };
-
-  const skip = (seconds: number) => {
-    if (!audioRef.current || audioError) return;
-    
-    const newTime = Math.max(0, Math.min(totalDuration, currentTime + seconds));
-    audioRef.current.currentTime = newTime;
-    setCurrentTime(newTime);
-  };
-
-  const toggleMute = () => {
-    setIsMuted(!isMuted);
-  };
-
-  const handleDownload = () => {
-    if (audioUrl && !audioError) {
-      const a = document.createElement('a');
-      a.href = audioUrl;
-      a.download = `${title.replace(/\s+/g, '_')}.wav`;
-      document.body.appendChild(a);
-      a.click();
-      document.body.removeChild(a);
-    }
-  };
-
-  const formatTime = (seconds: number) => {
-    if (isNaN(seconds)) return '0:00';
-    const mins = Math.floor(seconds / 60);
-    const secs = Math.floor(seconds % 60);
-    return `${mins}:${secs.toString().padStart(2, '0')}`;
-  };
-
-  const progressPercent = totalDuration ? (currentTime / totalDuration) * 100 : 0;
-
-  // Generate waveform bars
-  const waveformBars = Array.from({ length: 60 }, (_, i) => ({
-    id: i,
-    height: Math.random() * 40 + 10,
-    opacity: (i / 60 * 100) <= progressPercent ? 1 : 0.3
-  }));
-
-  if (audioError) {
-    return (
-      <div className={`bg-black/20 rounded-lg p-4 ${className}`}>
-        <div className="text-center text-red-400">
-          <p>Unable to load audio</p>
-          <p className="text-sm text-muted-foreground mt-1">Please try a different audio source</p>
-        </div>
-      </div>
-    );
-  }
-
+  // Use UniversalAudioPlayer for all audio functionality
   return (
-    <div className={`bg-black/20 rounded-lg p-4 space-y-4 ${className}`}>
-      {/* Audio Element */}
-      {audioUrl && (
-        <audio
-          ref={audioRef}
-          src={audioUrl}
-          preload="metadata"
-          crossOrigin="anonymous"
-        />
-      )}
-
-      {/* Main Controls */}
-      <div className="flex items-center space-x-4">
-        {/* Play/Pause Button */}
-        <button
-          onClick={togglePlay}
-          disabled={!audioUrl || isLoading}
-          className="p-3 bg-primary hover:bg-primary/90 rounded-full transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
-        >
-          {isLoading ? (
-            <div className="w-5 h-5 border-2 border-primary-foreground border-t-transparent rounded-full animate-spin" />
-          ) : isPlaying ? (
-            <Pause className="w-5 h-5 text-primary-foreground" />
-          ) : (
-            <Play className="w-5 h-5 text-primary-foreground" />
-          )}
-        </button>
-
-        {/* Skip Controls */}
-        <button
-          onClick={() => skip(-10)}
-          disabled={!audioUrl || audioError}
-          className="p-2 hover:bg-white/10 rounded-lg transition-colors disabled:opacity-50"
-        >
-          <SkipBack className="w-4 h-4" />
-        </button>
-
-        <button
-          onClick={() => skip(10)}
-          disabled={!audioUrl || audioError}
-          className="p-2 hover:bg-white/10 rounded-lg transition-colors disabled:opacity-50"
-        >
-          <SkipForward className="w-4 h-4" />
-        </button>
-
-        {/* Track Info */}
-        <div className="flex-1 min-w-0">
-          <h4 className="font-medium truncate">{title}</h4>
-          <div className="flex items-center justify-between text-sm text-muted-foreground">
-            <span>{formatTime(currentTime)}</span>
-            <span>{totalDuration ? formatTime(totalDuration) : duration}</span>
-          </div>
-        </div>
-
-        {/* Volume Controls */}
-        <div className="flex items-center space-x-2">
-          <button
-            onClick={toggleMute}
-            className="p-2 hover:bg-white/10 rounded-lg transition-colors"
-          >
-            {isMuted ? (
-              <VolumeX className="w-4 h-4 text-muted-foreground" />
-            ) : (
-              <Volume2 className="w-4 h-4 text-muted-foreground" />
-            )}
-          </button>
-          
-          <input
-            type="range"
-            min="0"
-            max="1"
-            step="0.1"
-            value={isMuted ? 0 : volume}
-            onChange={(e) => setVolume(Number(e.target.value))}
-            className="w-16 h-1 bg-muted rounded-lg appearance-none cursor-pointer"
-          />
-        </div>
-
-        {/* Download Button */}
-        <button
-          onClick={handleDownload}
-          disabled={!audioUrl || audioError}
-          className="p-2 hover:bg-white/10 rounded-lg transition-colors disabled:opacity-50"
-        >
-          <Download className="w-4 h-4" />
-        </button>
-      </div>
-
-      {/* Progress Bar */}
-      <div
-        ref={progressRef}
-        className="w-full bg-muted rounded-full h-2 cursor-pointer"
-        onClick={handleProgressClick}
-      >
-        <div 
-          className="bg-primary h-2 rounded-full transition-all duration-100"
-          style={{ width: `${progressPercent}%` }}
-        />
-      </div>
-
-      {/* Waveform Visualization */}
-      {showWaveform && (
-        <div className="flex items-center justify-center space-x-1 h-16">
-          {waveformBars.map((bar) => (
-            <div
-              key={bar.id}
-              className="w-1 bg-gradient-to-t from-primary to-purple-400 rounded-full transition-all duration-150"
-              style={{
-                height: `${bar.height}px`,
-                opacity: bar.opacity
-              }}
-            />
-          ))}
-        </div>
-      )}
-    </div>
+    <UniversalAudioPlayer
+      audioUrl={audioUrl}
+      title={title}
+      duration={duration}
+      onPlay={onPlay}
+      onPause={onPause}
+      onEnded={onEnded}
+      className={className}
+      showWaveform={showWaveform}
+      showDownload={true}
+      autoLoad={true}
+      compact={false}
+    />
   );
 };
 

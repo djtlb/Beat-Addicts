@@ -9,14 +9,15 @@ import {
     Shuffle,
     Sparkles,
     Wand2,
-    Zap
+    Zap,
+    AlertTriangle
 } from 'lucide-react';
 import { useState } from 'react';
 import AudioPlayer from '../components/AudioPlayer';
 import GenreSelector from '../components/GenreSelector';
 import { useAuth } from '../hooks/useAuth';
 import { aceStepClient, type GenerationParams } from '../lib/aceStep';
-import { openaiClient } from '../lib/openai';
+import { openaiClient } from '../lib/openaiClient';
 
 const Generate = () => {
   const [prompt, setPrompt] = useState('');
@@ -28,6 +29,7 @@ const Generate = () => {
   const [showAdvanced, setShowAdvanced] = useState(false);
   const [isGeneratingLyrics, setIsGeneratingLyrics] = useState(false);
   const [lyricsTheme, setLyricsTheme] = useState('');
+  const [apiError, setApiError] = useState('');
 
   // Advanced parameters
   const [duration, setDuration] = useState(180);
@@ -42,7 +44,7 @@ const Generate = () => {
 
   const { hasAccess } = useAuth();
 
-  console.log('Generate component rendered with advanced ACE-Step integration and genre selection');
+  console.log('Generate component loaded - LIVE AI MODE ONLY');
 
   const generationTypes = [
     { id: 'full-track', label: 'Full Track', description: 'Complete song with all elements' },
@@ -98,11 +100,30 @@ const Generate = () => {
     ]
   };
 
+  // Check API availability
+  const checkApiAvailability = () => {
+    const hasOpenAI = openaiClient.isClientAvailable();
+    const hasAceStep = import.meta.env.VITE_ACE_STEP_API_KEY || import.meta.env.VITE_OPENAI_API_KEY;
+    
+    if (!hasOpenAI || !hasAceStep) {
+      setApiError('Live AI services require valid API keys. Please configure VITE_OPENAI_API_KEY and VITE_ACE_STEP_API_KEY.');
+      return false;
+    }
+    
+    setApiError('');
+    return true;
+  };
+
   const handleGenerate = async () => {
     if (!prompt.trim()) return;
+    
+    if (!checkApiAvailability()) {
+      return;
+    }
 
-    console.log('Starting advanced ACE-Step music generation with genre:', selectedGenre);
+    console.log('Starting real ACE-Step music generation with live API');
     setIsGenerating(true);
+    setApiError('');
 
     try {
       const params: GenerationParams = {
@@ -138,10 +159,10 @@ const Generate = () => {
         metadata: result.metadata
       });
 
-      console.log('Advanced ACE-Step generation completed successfully');
+      console.log('Real ACE-Step generation completed successfully');
     } catch (error) {
-      console.error('Advanced generation failed:', error);
-      alert('Music generation failed. Please try again.');
+      console.error('Real generation failed:', error);
+      setApiError(`Generation failed: ${error.message}`);
     } finally {
       setIsGenerating(false);
     }
@@ -162,19 +183,23 @@ const Generate = () => {
 
   const generateLyrics = async () => {
     if (!lyricsTheme.trim()) return;
+    
+    if (!checkApiAvailability()) {
+      return;
+    }
 
     setIsGeneratingLyrics(true);
+    setApiError('');
+    
     try {
       const generatedLyrics = await openaiClient.generateLyrics(
         lyricsTheme,
-        selectedGenre,
-        'modern',
-        { temperature: 0.8, max_tokens: 1000 }
+        selectedGenre
       );
       setLyrics(generatedLyrics);
     } catch (error) {
-      console.error('Lyrics generation failed:', error);
-      alert('Lyrics generation failed. Please try again.');
+      console.error('Real lyrics generation failed:', error);
+      setApiError(`Lyrics generation failed: ${error.message}`);
     } finally {
       setIsGeneratingLyrics(false);
     }
@@ -184,18 +209,32 @@ const Generate = () => {
     <div className="max-w-7xl mx-auto space-y-8">
       {/* Header */}
       <div className="text-center">
-        <h1 className="text-3xl font-bold text-gradient mb-4">Professional Music Generation Studio</h1>
+        <h1 className="text-3xl font-bold text-gradient mb-4">Live AI Music Generation Studio</h1>
         <p className="text-muted-foreground text-lg">
-          Powered by ACE-Step foundation model • Production-ready quality • Advanced genre structures
+          Powered by real ACE-Step API • Live OpenAI integration • No simulation mode
         </p>
         <div className="flex items-center justify-center space-x-4 mt-2 text-sm text-muted-foreground">
-          <span>RTF: 27.27x on A100</span>
+          <span>Live API Calls</span>
           <span>•</span>
-          <span>Professional Song Structures</span>
+          <span>Professional Quality</span>
           <span>•</span>
-          <span>Up to 8min Extended Mixes</span>
+          <span>Real AI Processing</span>
         </div>
       </div>
+
+      {/* API Error Alert */}
+      {apiError && (
+        <div className="bg-red-500/10 border border-red-500/20 rounded-lg p-4 mb-6">
+          <div className="flex items-center space-x-2">
+            <AlertTriangle className="w-5 h-5 text-red-400" />
+            <span className="text-red-400 font-bold">API Configuration Required</span>
+          </div>
+          <p className="text-red-300 mt-2">{apiError}</p>
+          <p className="text-red-300 text-sm mt-1">
+            This application now requires live API connections and will not work with simulation modes.
+          </p>
+        </div>
+      )}
 
       {/* Genre Selection */}
       <GenreSelector
@@ -211,7 +250,7 @@ const Generate = () => {
             {/* Enhanced Prompt Input */}
             <div>
               <div className="flex items-center justify-between mb-2">
-                <label className="text-sm font-medium">Production Description</label>
+                <label className="text-sm font-medium">Production Description (Live AI Enhanced)</label>
                 <div className="flex space-x-2">
                   {(samplePrompts[selectedGenre] || samplePrompts.edm).slice(0, 3).map((_, index) => (
                     <button
@@ -231,20 +270,20 @@ const Generate = () => {
                 className="w-full h-24 px-4 py-3 bg-input border border-border rounded-lg resize-none focus:outline-none focus:ring-2 focus:ring-primary"
               />
               <p className="text-xs text-muted-foreground mt-1">
-                Describe mood, energy, instruments, and production style
+                Will be enhanced by live OpenAI API for professional production
               </p>
             </div>
 
-            {/* Lyrics Input with AI Generation */}
+            {/* Lyrics Input with Real AI Generation */}
             <div>
               <div className="flex items-center justify-between mb-2">
-                <label className="block text-sm font-medium">Lyrics (Optional)</label>
+                <label className="block text-sm font-medium">Lyrics (Live AI Generation)</label>
                 <button
                   onClick={generateLyrics}
-                  disabled={!lyricsTheme.trim() || isGeneratingLyrics}
+                  disabled={!lyricsTheme.trim() || isGeneratingLyrics || !!apiError}
                   className={`
                     flex items-center space-x-1 px-3 py-1 rounded text-xs font-medium transition-all
-                    ${lyricsTheme.trim() && !isGeneratingLyrics
+                    ${lyricsTheme.trim() && !isGeneratingLyrics && !apiError
                       ? 'bg-primary/20 text-primary hover:bg-primary/30'
                       : 'bg-muted text-muted-foreground cursor-not-allowed'
                     }
@@ -255,7 +294,7 @@ const Generate = () => {
                   ) : (
                     <Sparkles className="w-3 h-3" />
                   )}
-                  <span>AI Generate</span>
+                  <span>Live AI Generate</span>
                 </button>
               </div>
 
@@ -274,11 +313,11 @@ const Generate = () => {
               <textarea
                 value={lyrics}
                 onChange={(e) => setLyrics(e.target.value)}
-                placeholder="[verse]&#10;Your lyrics here&#10;[chorus]&#10;With structure tags&#10;&#10;Or use AI generation above!"
+                placeholder="[verse]&#10;Your lyrics here&#10;[chorus]&#10;With structure tags&#10;&#10;Or use live AI generation above!"
                 className="w-full h-32 px-4 py-3 bg-input border border-border rounded-lg resize-none focus:outline-none focus:ring-2 focus:ring-primary font-mono text-sm"
               />
               <p className="text-xs text-muted-foreground mt-1">
-                Write your own lyrics or use AI to generate them based on your theme
+                Write your own lyrics or use live OpenAI API to generate them
               </p>
             </div>
 
@@ -365,10 +404,10 @@ const Generate = () => {
           {/* Generate Button */}
           <button
             onClick={handleGenerate}
-            disabled={!prompt.trim() || isGenerating}
+            disabled={!prompt.trim() || isGenerating || !!apiError}
             className={`
               w-full py-4 px-6 rounded-lg font-medium flex items-center justify-center space-x-2 transition-all
-              ${prompt.trim() && !isGenerating
+              ${prompt.trim() && !isGenerating && !apiError
                 ? 'bg-primary hover:bg-primary/90 text-primary-foreground shadow-lg hover:shadow-xl premium-glow'
                 : 'bg-muted text-muted-foreground cursor-not-allowed'
               }
@@ -377,15 +416,21 @@ const Generate = () => {
             {isGenerating ? (
               <>
                 <Loader2 className="w-5 h-5 animate-spin" />
-                <span>Generating Professional {selectedGenre.toUpperCase()} Track...</span>
+                <span>Generating with Live AI APIs...</span>
               </>
             ) : (
               <>
                 <Wand2 className="w-5 h-5" />
-                <span>Generate Professional Music</span>
+                <span>Generate with Live AI</span>
               </>
             )}
           </button>
+
+          {!prompt.trim() && (
+            <p className="text-center text-yellow-400 text-sm">
+              Enter a production description to generate music with live AI
+            </p>
+          )}
         </div>
 
         {/* Advanced Settings Panel */}
@@ -395,7 +440,7 @@ const Generate = () => {
             <div className="flex items-center justify-between mb-4">
               <h3 className="font-semibold flex items-center space-x-2">
                 <Zap className="w-4 h-4" />
-                <span>ACE-Step Engine</span>
+                <span>Live ACE-Step API</span>
               </h3>
               <button
                 onClick={() => setShowAdvanced(!showAdvanced)}
@@ -534,24 +579,28 @@ const Generate = () => {
           <div className="glass-card p-4 rounded-xl">
             <h4 className="font-medium mb-2 flex items-center space-x-2">
               <Clock className="w-4 h-4" />
-              <span>Performance</span>
+              <span>Live API Status</span>
             </h4>
             <div className="space-y-2 text-sm text-muted-foreground">
               <div className="flex justify-between">
-                <span>Est. Generation Time:</span>
-                <span>{(duration / 27.27).toFixed(1)}s</span>
+                <span>OpenAI API:</span>
+                <span className={openaiClient.isClientAvailable() ? 'text-green-400' : 'text-red-400'}>
+                  {openaiClient.isClientAvailable() ? 'Connected' : 'Not Configured'}
+                </span>
               </div>
               <div className="flex justify-between">
-                <span>Real-Time Factor:</span>
-                <span>27.27x</span>
-              </div>
-              <div className="flex justify-between">
-                <span>Quality Steps:</span>
-                <span>{steps}</span>
+                <span>ACE-Step API:</span>
+                <span className={import.meta.env.VITE_ACE_STEP_API_KEY || import.meta.env.VITE_OPENAI_API_KEY ? 'text-green-400' : 'text-red-400'}>
+                  {import.meta.env.VITE_ACE_STEP_API_KEY || import.meta.env.VITE_OPENAI_API_KEY ? 'Connected' : 'Not Configured'}
+                </span>  
               </div>
               <div className="flex justify-between">
                 <span>Genre:</span>
                 <span className="capitalize">{selectedGenre}</span>
+              </div>
+              <div className="flex justify-between">
+                <span>Mode:</span>
+                <span className="text-yellow-400">Live API Only</span>
               </div>
             </div>
           </div>
@@ -567,13 +616,13 @@ const Generate = () => {
             </div>
             <div className="flex-1">
               <h3 className="font-medium mb-2">
-                Creating Professional {selectedGenre.toUpperCase()} Track with {productionStyle} Production...
+                Creating Professional {selectedGenre.toUpperCase()} Track with Live AI APIs...
               </h3>
               <div className="w-full bg-muted rounded-full h-2">
                 <div className="bg-primary h-2 rounded-full animate-pulse" style={{ width: '78%' }}></div>
               </div>
               <p className="text-sm text-muted-foreground mt-2">
-                Genre structure analysis • Professional arrangement • Advanced mixing • Master processing
+                Live OpenAI enhancement • Real ACE-Step generation • Professional mastering
               </p>
             </div>
           </div>
@@ -586,7 +635,7 @@ const Generate = () => {
           <div className="flex items-center justify-between">
             <h3 className="text-lg font-semibold flex items-center space-x-2">
               <BarChart3 className="w-6 h-6 text-primary" />
-              <span>Professional Track Generated</span>
+              <span>Live AI Generated Track</span>
             </h3>
             <div className="flex items-center space-x-4 text-sm text-muted-foreground">
               <span className="capitalize font-medium text-primary">{generatedTrack.genre}</span>
@@ -642,7 +691,7 @@ const Generate = () => {
 
           {/* Generation Info */}
           <div className="border border-border rounded-lg p-4 bg-black/10">
-            <h4 className="font-medium text-sm mb-2">Generation Details</h4>
+            <h4 className="font-medium text-sm mb-2">Live API Generation Details</h4>
             <div className="grid grid-cols-2 md:grid-cols-4 gap-4 text-sm text-muted-foreground">
               <div>Steps: {steps}</div>
               <div>Guidance: {guidanceScale}</div>
@@ -652,6 +701,7 @@ const Generate = () => {
             <div className="mt-2 text-xs text-muted-foreground">
               <p>Prompt: "{generatedTrack.prompt}"</p>
               {generatedTrack.lyrics && <p>Lyrics: "{generatedTrack.lyrics.substring(0, 100)}..."</p>}
+              <p className="text-green-400 font-bold mt-1">✅ Generated with live AI APIs</p>
             </div>
           </div>
         </div>
