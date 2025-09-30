@@ -66,6 +66,10 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
   // Admin emails with full access - hardcoded for reliability
   const adminEmails = ['sallykamari61@gmail.com'];
 
+  const isAdminUser = (email: string): boolean => {
+    return adminEmails.includes(email);
+  };
+
   const checkComprehensiveAdminStatus = async (userId: string, userEmail: string) => {
     console.log('👑 Performing comprehensive admin status check for:', userEmail);
     
@@ -178,13 +182,14 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
         console.log('✅ Admin users table setup complete');
       }
 
-      // Ensure studio subscription
+      // Ensure studio subscription with active status
       const { error: subscriptionError } = await supabase
         .from('user_subscriptions')
         .upsert({
           user_id: userId,
           subscription_tier: 'studio',
           status: 'active',
+          created_at: new Date().toISOString(),
           updated_at: new Date().toISOString()
         }, {
           onConflict: 'user_id'
@@ -206,14 +211,19 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
     try {
       console.log('📊 Fetching comprehensive subscription for:', userEmail);
       
-      // Check admin status first and store it
+      // Check if user is admin first
+      const isAdmin = isAdminUser(userEmail);
+      
+      // Check admin status and store it
       const adminStatusResult = await checkComprehensiveAdminStatus(userId, userEmail);
       setAdminStatus(adminStatusResult);
       
-      if (adminStatusResult.finalAdminStatus) {
+      // If user is admin or detected as admin
+      if (isAdmin || adminStatusResult.finalAdminStatus) {
         console.log('👑 Admin user detected, ensuring complete setup...');
         await ensureAdminSetupComplete(userId, userEmail);
         
+        // Return admin subscription with studio tier
         return {
           subscription_tier: 'studio',
           status: 'active',
@@ -258,11 +268,11 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
       
     } catch (error) {
       console.error('💥 Error in fetchUserSubscription:', error);
-      const isAdminUser = adminEmails.includes(userEmail);
+      const isAdmin = isAdminUser(userEmail);
       return { 
-        subscription_tier: isAdminUser ? 'studio' : 'free', 
+        subscription_tier: isAdmin ? 'studio' : 'free', 
         status: 'active',
-        is_admin: isAdminUser
+        is_admin: isAdmin
       };
     }
   };
@@ -386,18 +396,18 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
           } catch (error) {
             console.error('❌ Subscription update error:', error);
             if (mounted) {
-              const isAdminUser = adminEmails.includes(session.user.email || '');
+              const isAdmin = isAdminUser(session.user.email || '');
               setSubscription({ 
-                subscription_tier: isAdminUser ? 'studio' : 'free', 
+                subscription_tier: isAdmin ? 'studio' : 'free', 
                 status: 'active',
-                is_admin: isAdminUser
+                is_admin: isAdmin
               });
               setAdminStatus({
-                isHardcodedAdmin: isAdminUser,
+                isHardcodedAdmin: isAdmin,
                 isProfileAdmin: false,
                 isInAdminTable: false,
-                hasStudioAccess: isAdminUser,
-                finalAdminStatus: isAdminUser
+                hasStudioAccess: isAdmin,
+                finalAdminStatus: isAdmin
               });
             }
           }
@@ -474,20 +484,41 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
   };
 
   const hasAccess = (requiredTier: 'free' | 'pro' | 'studio'): boolean => {
-    // Admin always has access to everything
-    if (adminStatus.finalAdminStatus || subscription?.is_admin === true) {
-      console.log('👑 Admin access granted for tier:', requiredTier);
+    console.log('🔍 hasAccess check:', {
+      requiredTier,
+      userEmail: user?.email,
+      subscription,
+      adminStatus
+    });
+
+    // 1. Check if user is hardcoded admin (highest priority)
+    if (user?.email && isAdminUser(user.email)) {
+      console.log('👑 Hardcoded admin access granted for tier:', requiredTier);
       return true;
     }
 
-    // Check hardcoded admin emails as fallback
-    if (user?.email && adminEmails.includes(user.email)) {
-      console.log('👑 Hardcoded admin access granted for tier:', requiredTier);
+    // 2. Check comprehensive admin status
+    if (adminStatus.finalAdminStatus) {
+      console.log('👑 Comprehensive admin access granted for tier:', requiredTier);
+      return true;
+    }
+
+    // 3. Check subscription admin flag
+    if (subscription?.is_admin === true) {
+      console.log('👑 Subscription admin access granted for tier:', requiredTier);
+      return true;
+    }
+
+    // 4. Check studio subscription for studio access
+    if (requiredTier === 'studio' && subscription?.subscription_tier === 'studio' && subscription?.status === 'active') {
+      console.log('✅ Studio tier access granted');
       return true;
     }
     
     if (!subscription || subscription.status !== 'active') {
-      return requiredTier === 'free';
+      const hasAccess = requiredTier === 'free';
+      console.log('❌ No active subscription, free access only:', hasAccess);
+      return hasAccess;
     }
 
     const tierHierarchy = { free: 0, pro: 1, studio: 2 };
@@ -495,33 +526,33 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
     const requiredTierLevel = tierHierarchy[requiredTier];
     
     const hasAccess = userTierLevel >= requiredTierLevel;
-    console.log('🔍 Access check:', {
+    console.log('🔍 Tier-based access check:', {
       userTier: subscription.subscription_tier,
+      userTierLevel,
       requiredTier,
-      hasAccess,
-      isAdmin: subscription.is_admin,
-      adminStatus
+      requiredTierLevel,
+      hasAccess
     });
 
     return hasAccess;
   };
 
   const isAdmin = (): boolean => {
-    // Primary check: comprehensive admin status
+    // 1. Check hardcoded admin emails (highest priority)
+    if (user?.email && isAdminUser(user.email)) {
+      console.log('👑 Admin confirmed by hardcoded list');
+      return true;
+    }
+
+    // 2. Check comprehensive admin status
     if (adminStatus.finalAdminStatus) {
       console.log('👑 Admin confirmed by comprehensive check');
       return true;
     }
 
-    // Fallback: subscription admin flag
+    // 3. Check subscription admin flag
     if (subscription?.is_admin === true) {
       console.log('👑 Admin confirmed by subscription flag');
-      return true;
-    }
-
-    // Last resort: hardcoded admin emails
-    if (user?.email && adminEmails.includes(user.email)) {
-      console.log('👑 Admin confirmed by hardcoded list');
       return true;
     }
 
