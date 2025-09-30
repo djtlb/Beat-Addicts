@@ -147,7 +147,6 @@ export const setupFullAdminAccess = async (userId: string, email: string): Promi
         is_admin: true,
         role: 'admin',
         subscription_tier: 'studio',
-        created_at: new Date().toISOString(),
         updated_at: new Date().toISOString()
       }, {
         onConflict: 'id'
@@ -182,7 +181,6 @@ export const setupFullAdminAccess = async (userId: string, email: string): Promi
         user_id: userId,
         subscription_tier: 'studio',
         status: 'active',
-        created_at: new Date().toISOString(),
         updated_at: new Date().toISOString()
       }, {
         onConflict: 'user_id'
@@ -213,7 +211,6 @@ export const createUserProfile = async (userId: string, email: string, isAdmin: 
       is_admin: isAdmin,
       role: isAdmin ? 'admin' : 'user',
       subscription_tier: isAdmin ? 'studio' : 'free',
-      created_at: new Date().toISOString(),
       updated_at: new Date().toISOString()
     }, {
       onConflict: 'id'

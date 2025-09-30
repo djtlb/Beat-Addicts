@@ -21,6 +21,13 @@ interface AuthContextType {
   isAdmin: () => boolean;
   refreshUserData: () => Promise<void>;
   forceRefresh: () => void;
+  adminStatus: {
+    isHardcodedAdmin: boolean;
+    isProfileAdmin: boolean;
+    isInAdminTable: boolean;
+    hasStudioAccess: boolean;
+    finalAdminStatus: boolean;
+  };
 }
 
 const AuthContext = createContext<AuthContextType | undefined>(undefined);
@@ -39,44 +46,54 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
   const [subscription, setSubscription] = useState<UserSubscription | null>(null);
   const [loading, setLoading] = useState(true);
   const [refreshCounter, setRefreshCounter] = useState(0);
+  const [adminStatus, setAdminStatus] = useState({
+    isHardcodedAdmin: false,
+    isProfileAdmin: false,
+    isInAdminTable: false,
+    hasStudioAccess: false,
+    finalAdminStatus: false
+  });
 
   console.log('🔐 AuthProvider state:', { 
     userEmail: user?.email, 
     loading, 
     subscriptionTier: subscription?.subscription_tier,
     isAdminFlag: subscription?.is_admin,
+    adminStatus,
     refreshCounter
   });
 
   // Admin emails with full access - hardcoded for reliability
   const adminEmails = ['sallykamari61@gmail.com'];
 
-  const checkAdminStatus = async (userId: string, userEmail: string): Promise<boolean> => {
-    console.log('👑 Checking comprehensive admin status for:', userEmail);
+  const checkComprehensiveAdminStatus = async (userId: string, userEmail: string) => {
+    console.log('👑 Performing comprehensive admin status check for:', userEmail);
     
+    const status = {
+      isHardcodedAdmin: false,
+      isProfileAdmin: false,
+      isInAdminTable: false,
+      hasStudioAccess: false,
+      finalAdminStatus: false
+    };
+
     // 1. Check hardcoded admin list (highest priority)
-    if (adminEmails.includes(userEmail)) {
-      console.log('✅ User is in hardcoded admin list');
-      return true;
-    }
+    status.isHardcodedAdmin = adminEmails.includes(userEmail);
+    console.log('🔍 Hardcoded admin check:', status.isHardcodedAdmin);
 
     // 2. Check profiles table for is_admin flag
     try {
       const { data: profileData, error: profileError } = await supabase
         .from('profiles')
-        .select('is_admin, role')
+        .select('is_admin, role, subscription_tier')
         .eq('id', userId)
         .maybeSingle();
 
       if (!profileError && profileData) {
-        if (profileData.is_admin === true) {
-          console.log('✅ User has is_admin=true in profiles');
-          return true;
-        }
-        if (profileData.role === 'admin') {
-          console.log('✅ User has role=admin in profiles');
-          return true;
-        }
+        status.isProfileAdmin = profileData.is_admin === true || profileData.role === 'admin';
+        console.log('🔍 Profile admin check:', status.isProfileAdmin, profileData);
+      } else {
+        console.log('⚠️ Profile check error or no profile:', profileError);
       }
     } catch (error) {
       console.log('⚠️ Error checking profiles table:', error);
@@ -91,96 +108,97 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
         .maybeSingle();
 
       if (!adminUserError && adminUserData) {
-        console.log('✅ User found in admin_users table');
-        return true;
+        status.isInAdminTable = true;
+        console.log('🔍 Admin table check:', status.isInAdminTable);
       }
     } catch (error) {
       console.log('⚠️ Error checking admin_users table:', error);
     }
 
-    // 4. Check auth metadata
+    // 4. Check subscription level
     try {
-      const { data: { user: authUser } } = await supabase.auth.getUser();
-      if (authUser?.user_metadata?.is_admin === true) {
-        console.log('✅ User has is_admin=true in auth metadata');
-        return true;
+      const { data: subData, error: subError } = await supabase
+        .from('user_subscriptions')
+        .select('subscription_tier, status')
+        .eq('user_id', userId)
+        .maybeSingle();
+
+      if (!subError && subData) {
+        status.hasStudioAccess = subData.subscription_tier === 'studio' && subData.status === 'active';
+        console.log('🔍 Studio subscription check:', status.hasStudioAccess);
       }
     } catch (error) {
-      console.log('⚠️ Error checking auth metadata:', error);
+      console.log('⚠️ Error checking subscription:', error);
     }
 
-    console.log('❌ User is not admin by any method');
-    return false;
+    // Determine final admin status
+    status.finalAdminStatus = status.isHardcodedAdmin || status.isProfileAdmin || status.isInAdminTable;
+    
+    console.log('📊 Final admin status determination:', status);
+    return status;
   };
 
-  const ensureAdminSetup = async (userId: string, userEmail: string): Promise<void> => {
-    const isAdmin = await checkAdminStatus(userId, userEmail);
+  const ensureAdminSetupComplete = async (userId: string, userEmail: string): Promise<void> => {
+    console.log('🛡️ Ensuring complete admin setup for:', userEmail);
     
-    if (isAdmin) {
-      console.log('🛡️ Setting up admin user in all systems...');
-      
-      // Ensure profile exists with admin flag
-      try {
-        const { error: profileError } = await supabase
-          .from('profiles')
-          .upsert({
-            id: userId,
-            email: userEmail,
-            is_admin: true,
-            role: 'admin',
-            updated_at: new Date().toISOString()
-          }, {
-            onConflict: 'id'
-          });
+    try {
+      // Always ensure profile exists and has admin flags
+      const { error: profileError } = await supabase
+        .from('profiles')
+        .upsert({
+          id: userId,
+          email: userEmail,
+          is_admin: true,
+          role: 'admin',
+          subscription_tier: 'studio',
+          updated_at: new Date().toISOString()
+        }, {
+          onConflict: 'id'
+        });
 
-        if (profileError) {
-          console.error('❌ Error updating profile:', profileError);
-        } else {
-          console.log('✅ Profile updated with admin privileges');
-        }
-      } catch (error) {
-        console.log('⚠️ Could not update profile (table might not exist)');
+      if (profileError) {
+        console.error('❌ Profile setup error:', profileError);
+      } else {
+        console.log('✅ Admin profile setup complete');
       }
 
       // Ensure admin_users table entry
-      try {
-        const { error: adminUsersError } = await supabase
-          .from('admin_users')
-          .upsert({
-            email: userEmail
-          }, {
-            onConflict: 'email'
-          });
+      const { error: adminUsersError } = await supabase
+        .from('admin_users')
+        .upsert({
+          email: userEmail,
+          created_at: new Date().toISOString()
+        }, {
+          onConflict: 'email'
+        });
 
-        if (adminUsersError) {
-          console.error('❌ Error updating admin_users:', adminUsersError);
-        } else {
-          console.log('✅ admin_users table updated');
-        }
-      } catch (error) {
-        console.log('⚠️ Could not update admin_users (table might not exist)');
+      if (adminUsersError) {
+        console.error('❌ Admin users table error:', adminUsersError);
+      } else {
+        console.log('✅ Admin users table setup complete');
       }
 
       // Ensure studio subscription
-      try {
-        const { error: subscriptionError } = await supabase
-          .from('user_subscriptions')
-          .upsert({
-            user_id: userId,
-            subscription_tier: 'studio',
-            status: 'active'
-          }, {
-            onConflict: 'user_id'
-          });
+      const { error: subscriptionError } = await supabase
+        .from('user_subscriptions')
+        .upsert({
+          user_id: userId,
+          subscription_tier: 'studio',
+          status: 'active',
+          updated_at: new Date().toISOString()
+        }, {
+          onConflict: 'user_id'
+        });
 
-        if (subscriptionError) {
-          console.error('❌ Error updating subscription:', subscriptionError);
-        } else {
-          console.log('✅ Studio subscription ensured');
-        }
-      } catch (error) {
-        console.log('⚠️ Could not update subscription (table might not exist)');
+      if (subscriptionError) {
+        console.error('❌ Subscription setup error:', subscriptionError);
+      } else {
+        console.log('✅ Studio subscription setup complete');
       }
+
+      console.log('🎉 Complete admin setup finished successfully');
+    } catch (error) {
+      console.error('💥 Error in admin setup:', error);
     }
   };
 
@@ -188,12 +206,13 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
     try {
       console.log('📊 Fetching comprehensive subscription for:', userEmail);
       
-      // Check admin status first
-      const isAdminUser = await checkAdminStatus(userId, userEmail);
+      // Check admin status first and store it
+      const adminStatusResult = await checkComprehensiveAdminStatus(userId, userEmail);
+      setAdminStatus(adminStatusResult);
       
-      if (isAdminUser) {
-        console.log('👑 Admin user detected, ensuring full setup...');
-        await ensureAdminSetup(userId, userEmail);
+      if (adminStatusResult.finalAdminStatus) {
+        console.log('👑 Admin user detected, ensuring complete setup...');
+        await ensureAdminSetupComplete(userId, userEmail);
         
         return {
           subscription_tier: 'studio',
@@ -294,6 +313,13 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
         } else {
           if (mounted) {
             setSubscription(null);
+            setAdminStatus({
+              isHardcodedAdmin: false,
+              isProfileAdmin: false,
+              isInAdminTable: false,
+              hasStudioAccess: false,
+              finalAdminStatus: false
+            });
           }
         }
       } catch (error) {
@@ -302,6 +328,13 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
           setSession(null);
           setUser(null);
           setSubscription(null);
+          setAdminStatus({
+            isHardcodedAdmin: false,
+            isProfileAdmin: false,
+            isInAdminTable: false,
+            hasStudioAccess: false,
+            finalAdminStatus: false
+          });
         }
       } finally {
         if (mounted) {
@@ -323,6 +356,13 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
           setSession(null);
           setUser(null);
           setSubscription(null);
+          setAdminStatus({
+            isHardcodedAdmin: false,
+            isProfileAdmin: false,
+            isInAdminTable: false,
+            hasStudioAccess: false,
+            finalAdminStatus: false
+          });
           return;
         }
         
@@ -352,11 +392,25 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
                 status: 'active',
                 is_admin: isAdminUser
               });
+              setAdminStatus({
+                isHardcodedAdmin: isAdminUser,
+                isProfileAdmin: false,
+                isInAdminTable: false,
+                hasStudioAccess: isAdminUser,
+                finalAdminStatus: isAdminUser
+              });
             }
           }
         } else {
           if (mounted) {
             setSubscription(null);
+            setAdminStatus({
+              isHardcodedAdmin: false,
+              isProfileAdmin: false,
+              isInAdminTable: false,
+              hasStudioAccess: false,
+              finalAdminStatus: false
+            });
           }
         }
       }
@@ -366,7 +420,7 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
       mounted = false;
       authSubscription.unsubscribe();
     };
-  }, [refreshCounter]); // Add refreshCounter as dependency
+  }, [refreshCounter]);
 
   const signUp = async (email: string, password: string) => {
     try {
@@ -421,7 +475,7 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
 
   const hasAccess = (requiredTier: 'free' | 'pro' | 'studio'): boolean => {
     // Admin always has access to everything
-    if (subscription?.is_admin === true) {
+    if (adminStatus.finalAdminStatus || subscription?.is_admin === true) {
       console.log('👑 Admin access granted for tier:', requiredTier);
       return true;
     }
@@ -445,23 +499,33 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
       userTier: subscription.subscription_tier,
       requiredTier,
       hasAccess,
-      isAdmin: subscription.is_admin
+      isAdmin: subscription.is_admin,
+      adminStatus
     });
 
     return hasAccess;
   };
 
   const isAdmin = (): boolean => {
-    // Check subscription admin flag first
+    // Primary check: comprehensive admin status
+    if (adminStatus.finalAdminStatus) {
+      console.log('👑 Admin confirmed by comprehensive check');
+      return true;
+    }
+
+    // Fallback: subscription admin flag
     if (subscription?.is_admin === true) {
+      console.log('👑 Admin confirmed by subscription flag');
       return true;
     }
 
-    // Fallback to hardcoded admin emails
+    // Last resort: hardcoded admin emails
     if (user?.email && adminEmails.includes(user.email)) {
+      console.log('👑 Admin confirmed by hardcoded list');
       return true;
     }
 
+    console.log('❌ No admin status detected');
     return false;
   };
 
@@ -476,7 +540,8 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
     hasAccess,
     isAdmin,
     refreshUserData,
-    forceRefresh
+    forceRefresh,
+    adminStatus
   };
 
   return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;

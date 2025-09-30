@@ -1,321 +1,377 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { 
-  AlertTriangle, 
+  Shield, 
   CheckCircle, 
+  AlertTriangle, 
+  XCircle, 
   RefreshCw, 
   Settings, 
-  User,
   Database,
-  Shield,
-  Wrench,
-  AlertCircle,
+  User,
+  Crown,
   Zap,
-  UserPlus
+  Activity
 } from 'lucide-react';
 import { useAuth } from '../hooks/useAuth';
-import { supabase } from '../lib/supabase';
 import { 
   diagnoseUserAdminStatus, 
-  checkAndFixCurrentUserAdmin,
+  setupFullAdminAccess, 
   emergencyGrantAdminAccess,
-  checkAdminUsersTable,
-  addToAdminUsersTable,
-  UserDiagnostics 
+  checkAndFixCurrentUserAdmin,
+  type UserDiagnostics 
 } from '../lib/adminUtils';
 
 const AdminDiagnostics = () => {
-  const { user, isAdmin, refreshUserData, forceRefresh } = useAuth();
+  const { user, isAdmin, refreshUserData, forceRefresh, adminStatus } = useAuth();
   const [diagnostics, setDiagnostics] = useState<UserDiagnostics | null>(null);
   const [loading, setLoading] = useState(false);
   const [fixing, setFixing] = useState(false);
-  const [emergencyMode, setEmergencyMode] = useState(false);
-  const [adminTableCheck, setAdminTableCheck] = useState<boolean | null>(null);
+  const [lastCheck, setLastCheck] = useState<Date | null>(null);
+
+  console.log('🔧 AdminDiagnostics rendered - User:', user?.email, 'Admin Status:', adminStatus);
 
   const runDiagnostics = async () => {
     if (!user) return;
 
     setLoading(true);
     try {
+      console.log('🔍 Running comprehensive diagnostics...');
       const result = await diagnoseUserAdminStatus(user.id);
       setDiagnostics(result);
-      
-      // Also check admin_users table
-      const adminTableResult = await checkAdminUsersTable(user.email!);
-      setAdminTableCheck(adminTableResult);
+      setLastCheck(new Date());
+      console.log('📊 Diagnostics complete:', result);
     } catch (error) {
-      console.error('Error running diagnostics:', error);
+      console.error('❌ Diagnostics error:', error);
     } finally {
       setLoading(false);
     }
   };
 
-  const fixAdminStatus = async () => {
+  const fixAdminAccess = async () => {
+    if (!user) return;
+
     setFixing(true);
     try {
-      const success = await checkAndFixCurrentUserAdmin();
-      if (success) {
-        console.log('✅ Admin status fixed successfully');
-        // Refresh diagnostics
-        await runDiagnostics();
-        // Refresh auth context
-        await refreshUserData();
-        // Force a complete refresh
-        setTimeout(() => {
-          forceRefresh();
-        }, 1000);
+      console.log('🛠️ Attempting to fix admin access...');
+      
+      // First try the smart fix
+      const smartFixResult = await checkAndFixCurrentUserAdmin();
+      console.log('🔧 Smart fix result:', smartFixResult);
+      
+      if (!smartFixResult) {
+        // If smart fix fails, try emergency grant
+        console.log('🚨 Smart fix failed, trying emergency grant...');
+        const emergencyResult = await emergencyGrantAdminAccess();
+        console.log('🚨 Emergency grant result:', emergencyResult);
       }
+
+      // Refresh everything
+      await refreshUserData();
+      forceRefresh();
+      
+      // Wait a bit then re-run diagnostics
+      setTimeout(() => {
+        runDiagnostics();
+      }, 1000);
+      
     } catch (error) {
-      console.error('Error fixing admin status:', error);
+      console.error('❌ Fix admin access error:', error);
     } finally {
       setFixing(false);
     }
   };
 
-  const emergencyRestore = async () => {
-    setEmergencyMode(true);
+  const setupCompleteAdmin = async () => {
+    if (!user) return;
+
+    setFixing(true);
     try {
-      // First, add to admin_users table if not already there
-      if (user?.email && !adminTableCheck) {
-        await addToAdminUsersTable(user.email);
-      }
+      console.log('🛡️ Setting up complete admin access...');
+      const result = await setupFullAdminAccess(user.id, user.email!);
+      console.log('🛡️ Complete setup result:', result);
       
-      // Then grant emergency admin access
-      const success = await emergencyGrantAdminAccess();
-      if (success) {
-        console.log('🚨 Emergency admin restore successful');
-        // Refresh everything
-        await runDiagnostics();
-        await refreshUserData();
-        setTimeout(() => {
-          forceRefresh();
-          window.location.reload(); // Force complete page reload
-        }, 1500);
-      }
+      // Refresh everything
+      await refreshUserData();
+      forceRefresh();
+      
+      // Re-run diagnostics
+      setTimeout(() => {
+        runDiagnostics();
+      }, 1000);
+      
     } catch (error) {
-      console.error('Emergency restore failed:', error);
+      console.error('❌ Complete admin setup error:', error);
     } finally {
-      setEmergencyMode(false);
+      setFixing(false);
     }
   };
+
+  useEffect(() => {
+    if (user) {
+      runDiagnostics();
+    }
+  }, [user]);
 
   const getStatusIcon = (status: boolean) => {
     return status ? (
       <CheckCircle className="w-5 h-5 text-green-400" />
     ) : (
-      <AlertTriangle className="w-5 h-5 text-red-400" />
+      <XCircle className="w-5 h-5 text-red-400" />
     );
   };
 
-  const getRecommendationText = (action: string) => {
-    switch (action) {
-      case 'create_profile':
-        return 'Create missing user profile with admin privileges';
-      case 'set_admin_flag':
-        return 'Set admin flag in user profile';
-      case 'sync_profile_from_auth':
-        return 'Sync profile admin status from auth metadata';
-      case 'sync_auth_from_profile':
-        return 'Sync auth metadata from profile admin status';
-      default:
-        return 'No action needed - admin status is correct';
-    }
+  const getOverallStatus = () => {
+    if (!diagnostics) return 'unknown';
+    
+    const adminByAnyMethod = diagnostics.isHardcodedAdmin || 
+                           diagnostics.isAdminInProfile || 
+                           diagnostics.isInAdminUsersTable;
+    
+    if (adminByAnyMethod && diagnostics.hasStudioSubscription) return 'healthy';
+    if (adminByAnyMethod) return 'partial';
+    return 'no-access';
   };
 
+  const currentAdminStatus = isAdmin();
+
   return (
-    <div className="bg-gray-900/50 border border-gray-700 rounded-lg p-6">
-      <div className="flex items-center justify-between mb-6">
-        <div className="flex items-center space-x-3">
-          <Settings className="w-6 h-6 text-purple-400" />
-          <h3 className="text-lg font-semibold text-white">Admin Status Diagnostics</h3>
-        </div>
-        <div className="flex space-x-2">
-          <button
-            onClick={runDiagnostics}
-            disabled={loading}
-            className="px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-lg transition-colors disabled:opacity-50 flex items-center space-x-2"
-          >
-            <RefreshCw className={`w-4 h-4 ${loading ? 'animate-spin' : ''}`} />
-            <span>Diagnose</span>
-          </button>
-          {diagnostics && diagnostics.recommendedAction !== 'none' && (
+    <div className="space-y-6">
+      {/* Header */}
+      <div className="bg-gray-900/50 border border-gray-700 rounded-lg p-6">
+        <div className="flex items-center justify-between mb-4">
+          <div className="flex items-center space-x-3">
+            <Shield className="w-8 h-8 text-purple-400" />
+            <div>
+              <h3 className="text-xl font-bold text-white">Admin Status Diagnostics</h3>
+              <p className="text-gray-400">Comprehensive admin privilege analysis</p>
+            </div>
+          </div>
+          <div className="flex items-center space-x-2">
             <button
-              onClick={fixAdminStatus}
-              disabled={fixing}
-              className="px-4 py-2 bg-green-600 hover:bg-green-700 text-white rounded-lg transition-colors disabled:opacity-50 flex items-center space-x-2"
+              onClick={runDiagnostics}
+              disabled={loading}
+              className="flex items-center space-x-2 px-4 py-2 bg-blue-600 hover:bg-blue-700 disabled:opacity-50 text-white rounded-lg transition-colors"
             >
-              <Wrench className={`w-4 h-4 ${fixing ? 'animate-pulse' : ''}`} />
-              <span>Fix Issues</span>
+              <RefreshCw className={`w-4 h-4 ${loading ? 'animate-spin' : ''}`} />
+              <span>Refresh</span>
             </button>
-          )}
-          <button
-            onClick={emergencyRestore}
-            disabled={emergencyMode}
-            className="px-4 py-2 bg-red-600 hover:bg-red-700 text-white rounded-lg transition-colors disabled:opacity-50 flex items-center space-x-2"
-          >
-            <Zap className={`w-4 h-4 ${emergencyMode ? 'animate-pulse' : ''}`} />
-            <span>Emergency Restore</span>
-          </button>
+          </div>
         </div>
-      </div>
 
-      {/* Current Status */}
-      <div className="grid grid-cols-1 md:grid-cols-4 gap-4 mb-6">
-        <div className="bg-gray-800/50 border border-gray-600 rounded-lg p-4">
-          <div className="flex items-center space-x-3">
-            <User className="w-6 h-6 text-blue-400" />
-            <div>
-              <p className="font-medium text-white">Current User</p>
-              <p className="text-sm text-gray-400">{user?.email}</p>
-            </div>
-          </div>
-        </div>
-        <div className="bg-gray-800/50 border border-gray-600 rounded-lg p-4">
-          <div className="flex items-center space-x-3">
-            <Shield className="w-6 h-6 text-purple-400" />
-            <div>
-              <p className="font-medium text-white">Admin Status</p>
-              <p className={`text-sm ${isAdmin() ? 'text-green-400' : 'text-red-400'}`}>
-                {isAdmin() ? 'Administrator' : 'Regular User'}
-              </p>
-            </div>
-          </div>
-        </div>
-        <div className="bg-gray-800/50 border border-gray-600 rounded-lg p-4">
-          <div className="flex items-center space-x-3">
-            <Database className="w-6 h-6 text-cyan-400" />
-            <div>
-              <p className="font-medium text-white">Database</p>
-              <p className="text-sm text-cyan-400">Connected</p>
-            </div>
-          </div>
-        </div>
-        <div className="bg-gray-800/50 border border-gray-600 rounded-lg p-4">
-          <div className="flex items-center space-x-3">
-            <UserPlus className="w-6 h-6 text-yellow-400" />
-            <div>
-              <p className="font-medium text-white">Admin Table</p>
-              <p className={`text-sm ${
-                adminTableCheck === null ? 'text-gray-400' :
-                adminTableCheck ? 'text-green-400' : 'text-red-400'
-              }`}>
-                {adminTableCheck === null ? 'Not Checked' :
-                 adminTableCheck ? 'In Admin List' : 'Not in Admin List'}
-              </p>
-            </div>
-          </div>
-        </div>
-      </div>
+        {lastCheck && (
+          <p className="text-sm text-gray-400 mb-4">
+            Last check: {lastCheck.toLocaleTimeString()}
+          </p>
+        )}
 
-      {/* Emergency Restore Info */}
-      <div className="mb-6 p-4 bg-red-500/20 border border-red-500/30 rounded-lg">
-        <div className="flex items-start space-x-3">
-          <AlertCircle className="w-5 h-5 text-red-400 mt-0.5" />
-          <div>
-            <h4 className="font-medium text-red-300 mb-1">Emergency Admin Restore</h4>
-            <p className="text-red-200 text-sm mb-2">
-              If you've lost admin access, use the "Emergency Restore" button. This will:
-            </p>
-            <ul className="text-red-200 text-sm space-y-1 ml-4">
-              <li>• Add your email to the admin_users table</li>
-              <li>• Set is_admin=true in your profile</li>
-              <li>• Force refresh the authentication context</li>
-              <li>• Reload the page to apply changes</li>
-            </ul>
-          </div>
-        </div>
-      </div>
-
-      {/* Diagnostics Results */}
-      {diagnostics && (
-        <div className="space-y-4">
-          <h4 className="text-md font-semibold text-white">Diagnostic Results</h4>
-          
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-            <div className="space-y-3">
-              <div className="flex items-center justify-between p-3 bg-gray-800/30 rounded-lg">
-                <span className="text-gray-300">Profile Exists</span>
-                {getStatusIcon(diagnostics.profileExists)}
-              </div>
-              <div className="flex items-center justify-between p-3 bg-gray-800/30 rounded-lg">
-                <span className="text-gray-300">Admin in Profile</span>
-                {getStatusIcon(diagnostics.isAdminInProfile)}
-              </div>
-              <div className="flex items-center justify-between p-3 bg-gray-800/30 rounded-lg">
-                <span className="text-gray-300">Admin in Auth Metadata</span>
-                {getStatusIcon(diagnostics.isAdminInAuthMetadata)}
-              </div>
-              <div className="flex items-center justify-between p-3 bg-gray-800/30 rounded-lg">
-                <span className="text-gray-300">In Admin Users Table</span>
-                {getStatusIcon(adminTableCheck || false)}
-              </div>
-            </div>
-            
-            <div className="space-y-3">
-              <div className="p-3 bg-gray-800/30 rounded-lg">
-                <p className="text-sm text-gray-400 mb-1">User ID</p>
-                <p className="text-xs font-mono text-white break-all">{diagnostics.userId}</p>
-              </div>
-              <div className="p-3 bg-gray-800/30 rounded-lg">
-                <p className="text-sm text-gray-400 mb-1">Email</p>
-                <p className="text-sm text-white">{diagnostics.email}</p>
-              </div>
-              <div className="p-3 bg-gray-800/30 rounded-lg">
-                <p className="text-sm text-gray-400 mb-1">Errors</p>
-                <p className="text-xs text-red-400">
-                  {diagnostics.errors.length > 0 ? diagnostics.errors.join(', ') : 'None'}
+        {/* Current Status Overview */}
+        <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+          <div className={`p-4 rounded-lg border ${
+            currentAdminStatus 
+              ? 'bg-green-500/20 border-green-500/30' 
+              : 'bg-red-500/20 border-red-500/30'
+          }`}>
+            <div className="flex items-center space-x-3">
+              {currentAdminStatus ? (
+                <CheckCircle className="w-6 h-6 text-green-400" />
+              ) : (
+                <XCircle className="w-6 h-6 text-red-400" />
+              )}
+              <div>
+                <p className="font-medium text-white">Current Status</p>
+                <p className={`text-sm ${currentAdminStatus ? 'text-green-400' : 'text-red-400'}`}>
+                  {currentAdminStatus ? 'Administrator' : 'No Admin Access'}
                 </p>
               </div>
             </div>
           </div>
 
-          {/* Recommendation */}
-          {diagnostics.recommendedAction !== 'none' && (
-            <div className="p-4 bg-yellow-500/20 border border-yellow-500/30 rounded-lg">
-              <div className="flex items-start space-x-3">
-                <AlertTriangle className="w-5 h-5 text-yellow-400 mt-0.5" />
-                <div>
-                  <p className="font-medium text-yellow-300">Recommended Action</p>
-                  <p className="text-sm text-yellow-200">
-                    {getRecommendationText(diagnostics.recommendedAction)}
-                  </p>
+          <div className="p-4 bg-blue-500/20 border border-blue-500/30 rounded-lg">
+            <div className="flex items-center space-x-3">
+              <User className="w-6 h-6 text-blue-400" />
+              <div>
+                <p className="font-medium text-white">User Email</p>
+                <p className="text-sm text-blue-400">{user?.email}</p>
+              </div>
+            </div>
+          </div>
+
+          <div className="p-4 bg-purple-500/20 border border-purple-500/30 rounded-lg">
+            <div className="flex items-center space-x-3">
+              <Activity className="w-6 h-6 text-purple-400" />
+              <div>
+                <p className="font-medium text-white">Overall Status</p>
+                <p className="text-sm text-purple-400 capitalize">
+                  {getOverallStatus().replace('-', ' ')}
+                </p>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      {/* Live Admin Status from Hook */}
+      <div className="bg-gray-900/50 border border-gray-700 rounded-lg p-6">
+        <h4 className="text-lg font-semibold text-white mb-4 flex items-center space-x-2">
+          <Zap className="w-5 h-5 text-yellow-400" />
+          <span>Live Admin Status (useAuth Hook)</span>
+        </h4>
+        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
+          <div className="flex items-center space-x-3 p-3 bg-gray-800/50 rounded-lg">
+            {getStatusIcon(adminStatus.isHardcodedAdmin)}
+            <div>
+              <p className="text-sm font-medium text-white">Hardcoded Admin</p>
+              <p className="text-xs text-gray-400">{adminStatus.isHardcodedAdmin ? 'Yes' : 'No'}</p>
+            </div>
+          </div>
+          <div className="flex items-center space-x-3 p-3 bg-gray-800/50 rounded-lg">
+            {getStatusIcon(adminStatus.isProfileAdmin)}
+            <div>
+              <p className="text-sm font-medium text-white">Profile Admin</p>
+              <p className="text-xs text-gray-400">{adminStatus.isProfileAdmin ? 'Yes' : 'No'}</p>
+            </div>
+          </div>
+          <div className="flex items-center space-x-3 p-3 bg-gray-800/50 rounded-lg">
+            {getStatusIcon(adminStatus.isInAdminTable)}
+            <div>
+              <p className="text-sm font-medium text-white">Admin Table</p>
+              <p className="text-xs text-gray-400">{adminStatus.isInAdminTable ? 'Yes' : 'No'}</p>
+            </div>
+          </div>
+          <div className="flex items-center space-x-3 p-3 bg-gray-800/50 rounded-lg">
+            {getStatusIcon(adminStatus.finalAdminStatus)}
+            <div>
+              <p className="text-sm font-medium text-white">Final Status</p>
+              <p className="text-xs text-gray-400">{adminStatus.finalAdminStatus ? 'Admin' : 'User'}</p>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      {/* Detailed Diagnostics */}
+      {diagnostics && (
+        <div className="bg-gray-900/50 border border-gray-700 rounded-lg p-6">
+          <h4 className="text-lg font-semibold text-white mb-4 flex items-center space-x-2">
+            <Database className="w-5 h-5 text-blue-400" />
+            <span>Database Diagnostics</span>
+          </h4>
+          
+          <div className="space-y-4">
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+              <div className="space-y-3">
+                <div className="flex items-center justify-between p-3 bg-gray-800/50 rounded-lg">
+                  <span className="text-white">Hardcoded Admin List</span>
+                  {getStatusIcon(diagnostics.isHardcodedAdmin)}
+                </div>
+                <div className="flex items-center justify-between p-3 bg-gray-800/50 rounded-lg">
+                  <span className="text-white">Profile Admin Flag</span>
+                  {getStatusIcon(diagnostics.isAdminInProfile)}
+                </div>
+                <div className="flex items-center justify-between p-3 bg-gray-800/50 rounded-lg">
+                  <span className="text-white">Admin Users Table</span>
+                  {getStatusIcon(diagnostics.isInAdminUsersTable)}
+                </div>
+              </div>
+              
+              <div className="space-y-3">
+                <div className="flex items-center justify-between p-3 bg-gray-800/50 rounded-lg">
+                  <span className="text-white">Profile Exists</span>
+                  {getStatusIcon(diagnostics.profileExists)}
+                </div>
+                <div className="flex items-center justify-between p-3 bg-gray-800/50 rounded-lg">
+                  <span className="text-white">Studio Subscription</span>
+                  {getStatusIcon(diagnostics.hasStudioSubscription)}
+                </div>
+                <div className="flex items-center justify-between p-3 bg-gray-800/50 rounded-lg">
+                  <span className="text-white">Auth Metadata Admin</span>
+                  {getStatusIcon(diagnostics.isAdminInAuthMetadata)}
                 </div>
               </div>
             </div>
+
+            {/* Recommended Action */}
+            {diagnostics.recommendedAction !== 'none' && (
+              <div className="mt-6 p-4 bg-yellow-500/20 border border-yellow-500/30 rounded-lg">
+                <div className="flex items-start space-x-3">
+                  <AlertTriangle className="w-6 h-6 text-yellow-400 mt-0.5" />
+                  <div>
+                    <h5 className="font-medium text-yellow-300 mb-1">Recommended Action</h5>
+                    <p className="text-yellow-200 text-sm mb-3">
+                      Action needed: <code className="bg-yellow-900/30 px-2 py-1 rounded text-yellow-300">
+                        {diagnostics.recommendedAction}
+                      </code>
+                    </p>
+                  </div>
+                </div>
+              </div>
+            )}
+
+            {/* Errors */}
+            {diagnostics.errors.length > 0 && (
+              <div className="mt-4 p-4 bg-red-500/20 border border-red-500/30 rounded-lg">
+                <h5 className="font-medium text-red-300 mb-2">Errors Encountered</h5>
+                <ul className="space-y-1">
+                  {diagnostics.errors.map((error, index) => (
+                    <li key={index} className="text-sm text-red-200">
+                      • {error}
+                    </li>
+                  ))}
+                </ul>
+              </div>
+            )}
+          </div>
+        </div>
+      )}
+
+      {/* Action Buttons */}
+      <div className="flex flex-wrap gap-4">
+        <button
+          onClick={fixAdminAccess}
+          disabled={fixing || loading}
+          className="flex items-center space-x-2 px-6 py-3 bg-green-600 hover:bg-green-700 disabled:opacity-50 text-white rounded-lg transition-colors"
+        >
+          <Settings className={`w-5 h-5 ${fixing ? 'animate-spin' : ''}`} />
+          <span>{fixing ? 'Fixing...' : 'Auto-Fix Admin Access'}</span>
+        </button>
+
+        <button
+          onClick={setupCompleteAdmin}
+          disabled={fixing || loading}
+          className="flex items-center space-x-2 px-6 py-3 bg-purple-600 hover:bg-purple-700 disabled:opacity-50 text-white rounded-lg transition-colors"
+        >
+          <Crown className="w-5 h-5" />
+          <span>Complete Admin Setup</span>
+        </button>
+
+        <button
+          onClick={() => {
+            refreshUserData();
+            forceRefresh();
+            setTimeout(runDiagnostics, 500);
+          }}
+          disabled={loading}
+          className="flex items-center space-x-2 px-6 py-3 bg-blue-600 hover:bg-blue-700 disabled:opacity-50 text-white rounded-lg transition-colors"
+        >
+          <RefreshCw className={`w-5 h-5 ${loading ? 'animate-spin' : ''}`} />
+          <span>Refresh All</span>
+        </button>
+      </div>
+
+      {/* Status Summary */}
+      <div className="bg-gradient-to-r from-purple-500/20 to-blue-500/20 border border-purple-500/30 rounded-lg p-4">
+        <h5 className="font-medium text-white mb-2">💡 Quick Summary</h5>
+        <div className="text-sm text-gray-300 space-y-1">
+          <p>• <strong>Current Admin Status:</strong> {currentAdminStatus ? '✅ Active' : '❌ Inactive'}</p>
+          <p>• <strong>User Email:</strong> {user?.email}</p>
+          <p>• <strong>Hardcoded Admin:</strong> {adminStatus.isHardcodedAdmin ? '✅ Yes' : '❌ No'}</p>
+          <p>• <strong>Database Admin:</strong> {adminStatus.isProfileAdmin ? '✅ Yes' : '❌ No'}</p>
+          {!currentAdminStatus && (
+            <p className="text-yellow-300 mt-2">
+              👆 Use "Auto-Fix Admin Access" to resolve issues automatically.
+            </p>
           )}
-
-          {/* Profile Data */}
-          {diagnostics.profileData && (
-            <div className="p-4 bg-gray-800/30 rounded-lg">
-              <p className="text-sm text-gray-400 mb-2">Raw Profile Data</p>
-              <pre className="text-xs text-gray-300 overflow-x-auto">
-                {JSON.stringify(diagnostics.profileData, null, 2)}
-              </pre>
-            </div>
-          )}
         </div>
-      )}
-
-      {loading && (
-        <div className="text-center py-8">
-          <RefreshCw className="w-8 h-8 text-purple-400 animate-spin mx-auto mb-2" />
-          <p className="text-gray-400">Running diagnostics...</p>
-        </div>
-      )}
-
-      {fixing && (
-        <div className="text-center py-8">
-          <Wrench className="w-8 h-8 text-green-400 animate-pulse mx-auto mb-2" />
-          <p className="text-gray-400">Fixing admin status issues...</p>
-        </div>
-      )}
-
-      {emergencyMode && (
-        <div className="text-center py-8">
-          <Zap className="w-8 h-8 text-red-400 animate-pulse mx-auto mb-2" />
-          <p className="text-gray-400">Emergency restore in progress...</p>
-          <p className="text-sm text-gray-500 mt-2">Page will reload automatically when complete</p>
-        </div>
-      )}
+      </div>
     </div>
   );
 };
