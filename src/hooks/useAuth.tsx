@@ -1,579 +1,313 @@
 import React, { createContext, useContext, useEffect, useState, ReactNode } from 'react';
-import { User, Session } from '@supabase/supabase-js';
 import { supabase } from '../lib/supabase';
+import type { User, Session } from '@supabase/supabase-js';
 
-interface UserSubscription {
-  subscription_tier: 'free' | 'pro' | 'studio';
-  status: 'active' | 'inactive' | 'cancelled';
-  expires_at?: string;
-  is_admin?: boolean;
+interface Profile {
+  id: string;
+  email: string;
+  display_name?: string;
+  avatar_url?: string;
+  role: string;
+  subscription_tier: string;
+  is_admin: boolean;
 }
 
-interface AuthContextType {
+interface Subscription {
+  id: string;
+  user_id: string;
+  subscription_tier: string;
+  status: string;
+  expires_at?: string;
+}
+
+interface AuthState {
   user: User | null;
   session: Session | null;
-  subscription: UserSubscription | null;
+  profile: Profile | null;
+  subscription: Subscription | null;
   loading: boolean;
+}
+
+interface AuthContextType extends AuthState {
   signIn: (email: string, password: string) => Promise<void>;
   signUp: (email: string, password: string) => Promise<void>;
   signOut: () => Promise<void>;
-  hasAccess: (requiredTier: 'free' | 'pro' | 'studio') => boolean;
   isAdmin: () => boolean;
-  refreshUserData: () => Promise<void>;
-  forceRefresh: () => void;
-  adminStatus: {
-    isHardcodedAdmin: boolean;
-    isProfileAdmin: boolean;
-    isInAdminTable: boolean;
-    hasStudioAccess: boolean;
-    finalAdminStatus: boolean;
-  };
+  hasAccess: (requiredTier?: string) => boolean;
 }
 
 const AuthContext = createContext<AuthContextType | undefined>(undefined);
 
 export const useAuth = () => {
   const context = useContext(AuthContext);
-  if (context === undefined) {
+  if (!context) {
     throw new Error('useAuth must be used within an AuthProvider');
   }
   return context;
 };
 
 export const AuthProvider = ({ children }: { children: ReactNode }) => {
-  const [user, setUser] = useState<User | null>(null);
-  const [session, setSession] = useState<Session | null>(null);
-  const [subscription, setSubscription] = useState<UserSubscription | null>(null);
-  const [loading, setLoading] = useState(true);
-  const [refreshCounter, setRefreshCounter] = useState(0);
-  const [adminStatus, setAdminStatus] = useState({
-    isHardcodedAdmin: false,
-    isProfileAdmin: false,
-    isInAdminTable: false,
-    hasStudioAccess: false,
-    finalAdminStatus: false
+  const [authState, setAuthState] = useState<AuthState>({
+    user: null,
+    session: null,
+    profile: null,
+    subscription: null,
+    loading: true,
   });
 
-  console.log('🔐 AuthProvider state:', { 
-    userEmail: user?.email, 
-    loading, 
-    subscriptionTier: subscription?.subscription_tier,
-    isAdminFlag: subscription?.is_admin,
-    adminStatus,
-    refreshCounter
-  });
+  console.log('🔐 Auth Provider initialized');
 
-  // Admin emails with full access - hardcoded for reliability
-  const adminEmails = ['sallykamari61@gmail.com'];
-
-  const isAdminUser = (email: string): boolean => {
-    return adminEmails.includes(email);
-  };
-
-  const checkComprehensiveAdminStatus = async (userId: string, userEmail: string) => {
-    console.log('👑 Performing comprehensive admin status check for:', userEmail);
-    
-    const status = {
-      isHardcodedAdmin: false,
-      isProfileAdmin: false,
-      isInAdminTable: false,
-      hasStudioAccess: false,
-      finalAdminStatus: false
-    };
-
-    // 1. Check hardcoded admin list (highest priority)
-    status.isHardcodedAdmin = adminEmails.includes(userEmail);
-    console.log('🔍 Hardcoded admin check:', status.isHardcodedAdmin);
-
-    // 2. Check profiles table for is_admin flag
+  // Load user profile
+  const loadUserProfile = async (userId: string) => {
     try {
-      const { data: profileData, error: profileError } = await supabase
+      console.log('👤 Loading user profile for:', userId);
+      
+      const { data: profile, error: profileError } = await supabase
         .from('profiles')
-        .select('is_admin, role, subscription_tier')
+        .select('*')
         .eq('id', userId)
-        .maybeSingle();
-
-      if (!profileError && profileData) {
-        status.isProfileAdmin = profileData.is_admin === true || profileData.role === 'admin';
-        console.log('🔍 Profile admin check:', status.isProfileAdmin, profileData);
-      } else {
-        console.log('⚠️ Profile check error or no profile:', profileError);
-      }
-    } catch (error) {
-      console.log('⚠️ Error checking profiles table:', error);
-    }
-
-    // 3. Check admin_users table
-    try {
-      const { data: adminUserData, error: adminUserError } = await supabase
-        .from('admin_users')
-        .select('email')
-        .eq('email', userEmail)
-        .maybeSingle();
-
-      if (!adminUserError && adminUserData) {
-        status.isInAdminTable = true;
-        console.log('🔍 Admin table check:', status.isInAdminTable);
-      }
-    } catch (error) {
-      console.log('⚠️ Error checking admin_users table:', error);
-    }
-
-    // 4. Check subscription level
-    try {
-      const { data: subData, error: subError } = await supabase
-        .from('user_subscriptions')
-        .select('subscription_tier, status')
-        .eq('user_id', userId)
-        .maybeSingle();
-
-      if (!subError && subData) {
-        status.hasStudioAccess = subData.subscription_tier === 'studio' && subData.status === 'active';
-        console.log('🔍 Studio subscription check:', status.hasStudioAccess);
-      }
-    } catch (error) {
-      console.log('⚠️ Error checking subscription:', error);
-    }
-
-    // Determine final admin status
-    status.finalAdminStatus = status.isHardcodedAdmin || status.isProfileAdmin || status.isInAdminTable;
-    
-    console.log('📊 Final admin status determination:', status);
-    return status;
-  };
-
-  const ensureAdminSetupComplete = async (userId: string, userEmail: string): Promise<void> => {
-    console.log('🛡️ Ensuring complete admin setup for:', userEmail);
-    
-    try {
-      // Always ensure profile exists and has admin flags
-      const { error: profileError } = await supabase
-        .from('profiles')
-        .upsert({
-          id: userId,
-          email: userEmail,
-          is_admin: true,
-          role: 'admin',
-          subscription_tier: 'studio',
-          updated_at: new Date().toISOString()
-        }, {
-          onConflict: 'id'
-        });
+        .single();
 
       if (profileError) {
-        console.error('❌ Profile setup error:', profileError);
-      } else {
-        console.log('✅ Admin profile setup complete');
+        console.log('Profile not found, creating new profile');
+        // Create profile if it doesn't exist
+        const { data: newProfile, error: createError } = await supabase
+          .from('profiles')
+          .insert({
+            id: userId,
+            role: 'user',
+            subscription_tier: 'free',
+            is_admin: false
+          })
+          .select()
+          .single();
+
+        if (createError) {
+          console.error('Failed to create profile:', createError);
+          return null;
+        }
+
+        console.log('✅ Created new user profile');
+        return newProfile;
       }
 
-      // Ensure admin_users table entry
-      const { error: adminUsersError } = await supabase
-        .from('admin_users')
-        .upsert({
-          email: userEmail,
-          created_at: new Date().toISOString()
-        }, {
-          onConflict: 'email'
-        });
-
-      if (adminUsersError) {
-        console.error('❌ Admin users table error:', adminUsersError);
-      } else {
-        console.log('✅ Admin users table setup complete');
-      }
-
-      // Ensure studio subscription with active status
-      const { error: subscriptionError } = await supabase
-        .from('user_subscriptions')
-        .upsert({
-          user_id: userId,
-          subscription_tier: 'studio',
-          status: 'active',
-          created_at: new Date().toISOString(),
-          updated_at: new Date().toISOString()
-        }, {
-          onConflict: 'user_id'
-        });
-
-      if (subscriptionError) {
-        console.error('❌ Subscription setup error:', subscriptionError);
-      } else {
-        console.log('✅ Studio subscription setup complete');
-      }
-
-      console.log('🎉 Complete admin setup finished successfully');
+      console.log('✅ User profile loaded:', profile);
+      return profile;
     } catch (error) {
-      console.error('💥 Error in admin setup:', error);
+      console.error('Error loading user profile:', error);
+      return null;
     }
   };
 
-  const fetchUserSubscription = async (userId: string, userEmail: string): Promise<UserSubscription> => {
+  // Load user subscription
+  const loadUserSubscription = async (userId: string) => {
     try {
-      console.log('📊 Fetching comprehensive subscription for:', userEmail);
+      console.log('💳 Loading user subscription for:', userId);
       
-      // Check if user is admin first
-      const isAdmin = isAdminUser(userEmail);
-      
-      // Check admin status and store it
-      const adminStatusResult = await checkComprehensiveAdminStatus(userId, userEmail);
-      setAdminStatus(adminStatusResult);
-      
-      // If user is admin or detected as admin
-      if (isAdmin || adminStatusResult.finalAdminStatus) {
-        console.log('👑 Admin user detected, ensuring complete setup...');
-        await ensureAdminSetupComplete(userId, userEmail);
-        
-        // Return admin subscription with studio tier
-        return {
-          subscription_tier: 'studio',
-          status: 'active',
-          is_admin: true
-        };
-      }
-      
-      // For non-admin users, fetch their subscription normally
-      const { data, error } = await supabase
+      const { data: subscription, error } = await supabase
         .from('user_subscriptions')
-        .select('subscription_tier, status, expires_at')
+        .select('*')
         .eq('user_id', userId)
-        .maybeSingle();
+        .eq('status', 'active')
+        .single();
 
       if (error && error.code !== 'PGRST116') {
-        console.error('❌ Error fetching subscription:', error.message);
-        return { subscription_tier: 'free', status: 'active', is_admin: false };
+        console.error('Error loading subscription:', error);
+        return null;
       }
 
-      if (!data) {
-        console.log('📝 Creating default subscription for:', userEmail);
-        
-        const { data: newSub, error: insertError } = await supabase
+      if (!subscription) {
+        console.log('No active subscription found, creating free tier');
+        // Create free tier subscription
+        const { data: newSubscription, error: createError } = await supabase
           .from('user_subscriptions')
           .insert({
             user_id: userId,
             subscription_tier: 'free',
             status: 'active'
           })
-          .select('subscription_tier, status, expires_at')
+          .select()
           .single();
 
-        if (insertError) {
-          console.error('❌ Error creating subscription:', insertError.message);
-          return { subscription_tier: 'free', status: 'active', is_admin: false };
+        if (createError) {
+          console.error('Failed to create subscription:', createError);
+          return null;
         }
-        
-        return { ...newSub, is_admin: false };
+
+        console.log('✅ Created free tier subscription');
+        return newSubscription;
       }
 
-      return { ...data, is_admin: false };
-      
+      console.log('✅ User subscription loaded:', subscription);
+      return subscription;
     } catch (error) {
-      console.error('💥 Error in fetchUserSubscription:', error);
-      const isAdmin = isAdminUser(userEmail);
-      return { 
-        subscription_tier: isAdmin ? 'studio' : 'free', 
-        status: 'active',
-        is_admin: isAdmin
-      };
+      console.error('Error loading user subscription:', error);
+      return null;
     }
   };
 
-  const refreshUserData = async () => {
-    if (!user) return;
-    
-    console.log('🔄 Refreshing user data...');
-    try {
-      const userSub = await fetchUserSubscription(user.id, user.email || '');
-      setSubscription(userSub);
-      console.log('✅ User data refreshed:', userSub);
-    } catch (error) {
-      console.error('❌ Error refreshing user data:', error);
-    }
-  };
-
-  const forceRefresh = () => {
-    console.log('🔄 Force refreshing auth context...');
-    setRefreshCounter(prev => prev + 1);
-  };
-
+  // Initialize auth state
   useEffect(() => {
     let mounted = true;
 
     const initializeAuth = async () => {
       try {
-        console.log('🚀 Initializing authentication... (refresh:', refreshCounter, ')');
+        console.log('🔄 Initializing auth...');
         
+        // Get initial session
         const { data: { session }, error } = await supabase.auth.getSession();
-
+        
         if (error) {
-          console.error('❌ Session error:', error.message);
+          console.error('Error getting session:', error);
+          if (mounted) {
+            setAuthState(prev => ({ ...prev, loading: false }));
+          }
+          return;
         }
 
-        if (!mounted) return;
+        if (session?.user && mounted) {
+          console.log('👤 User session found:', session.user.email);
+          
+          // Load profile and subscription
+          const [profile, subscription] = await Promise.all([
+            loadUserProfile(session.user.id),
+            loadUserSubscription(session.user.id)
+          ]);
 
-        console.log('📱 Session loaded:', session?.user?.email || 'No user');
-        setSession(session);
-        setUser(session?.user ?? null);
-        
-        if (session?.user) {
-          const userSub = await fetchUserSubscription(session.user.id, session.user.email || '');
-          if (mounted) {
-            setSubscription(userSub);
-            console.log('✅ Subscription set:', userSub);
-          }
+          setAuthState({
+            user: session.user,
+            session: session,
+            profile,
+            subscription,
+            loading: false
+          });
         } else {
+          console.log('❌ No user session found');
           if (mounted) {
-            setSubscription(null);
-            setAdminStatus({
-              isHardcodedAdmin: false,
-              isProfileAdmin: false,
-              isInAdminTable: false,
-              hasStudioAccess: false,
-              finalAdminStatus: false
-            });
+            setAuthState(prev => ({ ...prev, loading: false }));
           }
         }
       } catch (error) {
-        console.error('💥 Auth initialization error:', error);
+        console.error('Auth initialization error:', error);
         if (mounted) {
-          setSession(null);
-          setUser(null);
-          setSubscription(null);
-          setAdminStatus({
-            isHardcodedAdmin: false,
-            isProfileAdmin: false,
-            isInAdminTable: false,
-            hasStudioAccess: false,
-            finalAdminStatus: false
-          });
-        }
-      } finally {
-        if (mounted) {
-          setLoading(false);
-          console.log('✅ Auth initialization complete');
+          setAuthState(prev => ({ ...prev, loading: false }));
         }
       }
     };
 
     initializeAuth();
 
-    const { data: { subscription: authSubscription } } = supabase.auth.onAuthStateChange(
-      async (event, session) => {
-        if (!mounted) return;
-        
-        console.log('🔄 Auth state changed:', event, session?.user?.email || 'No user');
-        
-        if (event === 'SIGNED_OUT') {
-          setSession(null);
-          setUser(null);
-          setSubscription(null);
-          setAdminStatus({
-            isHardcodedAdmin: false,
-            isProfileAdmin: false,
-            isInAdminTable: false,
-            hasStudioAccess: false,
-            finalAdminStatus: false
+    // Listen for auth changes
+    const {
+      data: { subscription: authSubscription },
+    } = supabase.auth.onAuthStateChange(async (event, session) => {
+      console.log('🔄 Auth state changed:', event, session?.user?.email);
+
+      if (session?.user && mounted) {
+        const [profile, subscription] = await Promise.all([
+          loadUserProfile(session.user.id),
+          loadUserSubscription(session.user.id)
+        ]);
+
+        setAuthState({
+          user: session.user,
+          session: session,
+          profile,
+          subscription,
+          loading: false
+        });
+      } else {
+        if (mounted) {
+          setAuthState({
+            user: null,
+            session: null,
+            profile: null,
+            subscription: null,
+            loading: false
           });
-          return;
-        }
-        
-        if (event === 'TOKEN_REFRESHED' && session) {
-          console.log('🔄 Token refreshed');
-          setSession(session);
-          setUser(session.user);
-          return;
-        }
-        
-        setSession(session);
-        setUser(session?.user ?? null);
-        
-        if (session?.user) {
-          try {
-            const userSub = await fetchUserSubscription(session.user.id, session.user.email || '');
-            if (mounted) {
-              setSubscription(userSub);
-              console.log('✅ Subscription updated:', userSub);
-            }
-          } catch (error) {
-            console.error('❌ Subscription update error:', error);
-            if (mounted) {
-              const isAdmin = isAdminUser(session.user.email || '');
-              setSubscription({ 
-                subscription_tier: isAdmin ? 'studio' : 'free', 
-                status: 'active',
-                is_admin: isAdmin
-              });
-              setAdminStatus({
-                isHardcodedAdmin: isAdmin,
-                isProfileAdmin: false,
-                isInAdminTable: false,
-                hasStudioAccess: isAdmin,
-                finalAdminStatus: isAdmin
-              });
-            }
-          }
-        } else {
-          if (mounted) {
-            setSubscription(null);
-            setAdminStatus({
-              isHardcodedAdmin: false,
-              isProfileAdmin: false,
-              isInAdminTable: false,
-              hasStudioAccess: false,
-              finalAdminStatus: false
-            });
-          }
         }
       }
-    );
+    });
 
     return () => {
       mounted = false;
       authSubscription.unsubscribe();
     };
-  }, [refreshCounter]);
-
-  const signUp = async (email: string, password: string) => {
-    try {
-      console.log('📝 Signing up user:', email);
-      const { error } = await supabase.auth.signUp({ 
-        email, 
-        password,
-        options: {
-          emailRedirectTo: window.location.origin
-        }
-      });
-      if (error) {
-        console.error('❌ Sign up error:', error.message);
-        throw error;
-      }
-      console.log('✅ Sign up successful');
-    } catch (error) {
-      console.error('💥 Sign up exception:', error);
-      throw error;
-    }
-  };
+  }, []);
 
   const signIn = async (email: string, password: string) => {
-    try {
-      console.log('🔐 Signing in user:', email);
-      const { error } = await supabase.auth.signInWithPassword({ email, password });
-      if (error) {
-        console.error('❌ Sign in error:', error.message);
-        throw error;
-      }
-      console.log('✅ Sign in successful');
-    } catch (error) {
-      console.error('💥 Sign in exception:', error);
+    console.log('🔑 Signing in user:', email);
+    const { error } = await supabase.auth.signInWithPassword({ email, password });
+    if (error) {
+      console.error('Sign in error:', error);
       throw error;
     }
+    console.log('✅ User signed in successfully');
+  };
+
+  const signUp = async (email: string, password: string) => {
+    console.log('📝 Signing up user:', email);
+    const { error } = await supabase.auth.signUp({ email, password });
+    if (error) {
+      console.error('Sign up error:', error);
+      throw error;
+    }
+    console.log('✅ User signed up successfully');
   };
 
   const signOut = async () => {
-    try {
-      console.log('👋 Signing out user');
-      const { error } = await supabase.auth.signOut();
-      if (error) {
-        console.error('❌ Sign out error:', error.message);
-        throw error;
-      }
-      console.log('✅ Sign out successful');
-    } catch (error) {
-      console.error('💥 Sign out exception:', error);
+    console.log('🚪 Signing out user');
+    const { error } = await supabase.auth.signOut();
+    if (error) {
+      console.error('Sign out error:', error);
       throw error;
     }
-  };
-
-  const hasAccess = (requiredTier: 'free' | 'pro' | 'studio'): boolean => {
-    console.log('🔍 hasAccess check:', {
-      requiredTier,
-      userEmail: user?.email,
-      subscription,
-      adminStatus
-    });
-
-    // 1. Check if user is hardcoded admin (highest priority)
-    if (user?.email && isAdminUser(user.email)) {
-      console.log('👑 Hardcoded admin access granted for tier:', requiredTier);
-      return true;
-    }
-
-    // 2. Check comprehensive admin status
-    if (adminStatus.finalAdminStatus) {
-      console.log('👑 Comprehensive admin access granted for tier:', requiredTier);
-      return true;
-    }
-
-    // 3. Check subscription admin flag
-    if (subscription?.is_admin === true) {
-      console.log('👑 Subscription admin access granted for tier:', requiredTier);
-      return true;
-    }
-
-    // 4. Check studio subscription for studio access
-    if (requiredTier === 'studio' && subscription?.subscription_tier === 'studio' && subscription?.status === 'active') {
-      console.log('✅ Studio tier access granted');
-      return true;
-    }
-    
-    if (!subscription || subscription.status !== 'active') {
-      const hasAccess = requiredTier === 'free';
-      console.log('❌ No active subscription, free access only:', hasAccess);
-      return hasAccess;
-    }
-
-    const tierHierarchy = { free: 0, pro: 1, studio: 2 };
-    const userTierLevel = tierHierarchy[subscription.subscription_tier];
-    const requiredTierLevel = tierHierarchy[requiredTier];
-    
-    const hasAccess = userTierLevel >= requiredTierLevel;
-    console.log('🔍 Tier-based access check:', {
-      userTier: subscription.subscription_tier,
-      userTierLevel,
-      requiredTier,
-      requiredTierLevel,
-      hasAccess
-    });
-
-    return hasAccess;
+    console.log('✅ User signed out successfully');
   };
 
   const isAdmin = (): boolean => {
-    // 1. Check hardcoded admin emails (highest priority)
-    if (user?.email && isAdminUser(user.email)) {
-      console.log('👑 Admin confirmed by hardcoded list');
+    const adminStatus = authState.profile?.is_admin === true;
+    console.log('🛡️ Admin check:', adminStatus, 'for user:', authState.user?.email);
+    return adminStatus;
+  };
+
+  const hasAccess = (requiredTier: string = 'free'): boolean => {
+    // Admin always has access
+    if (isAdmin()) {
+      console.log('👑 Admin access granted for tier:', requiredTier);
       return true;
     }
 
-    // 2. Check comprehensive admin status
-    if (adminStatus.finalAdminStatus) {
-      console.log('👑 Admin confirmed by comprehensive check');
-      return true;
-    }
+    const userTier = authState.subscription?.subscription_tier || authState.profile?.subscription_tier || 'free';
+    console.log('🎟️ Access check:', { userTier, requiredTier });
 
-    // 3. Check subscription admin flag
-    if (subscription?.is_admin === true) {
-      console.log('👑 Admin confirmed by subscription flag');
-      return true;
-    }
+    // Define tier hierarchy
+    const tierLevels = {
+      'free': 0,
+      'pro': 1,
+      'studio': 2
+    };
 
-    console.log('❌ No admin status detected');
-    return false;
+    const userLevel = tierLevels[userTier as keyof typeof tierLevels] ?? 0;
+    const requiredLevel = tierLevels[requiredTier as keyof typeof tierLevels] ?? 0;
+
+    const hasAccess = userLevel >= requiredLevel;
+    console.log('✅ Access result:', hasAccess);
+    return hasAccess;
   };
 
   const value: AuthContextType = {
-    user,
-    session,
-    subscription,
-    loading,
+    ...authState,
     signIn,
     signUp,
     signOut,
-    hasAccess,
     isAdmin,
-    refreshUserData,
-    forceRefresh,
-    adminStatus
+    hasAccess,
   };
 
-  return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;
+  return (
+    <AuthContext.Provider value={value}>
+      {children}
+    </AuthContext.Provider>
+  );
 };

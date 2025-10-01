@@ -1,34 +1,49 @@
 import React from 'react';
-import { Routes, Route } from 'react-router-dom';
+import { BrowserRouter as Router, Routes, Route, Navigate } from 'react-router-dom';
+import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { AuthProvider, useAuth } from './hooks/useAuth';
-import LoginForm from './components/LoginForm';
+import { Toaster } from './components/ui/toaster';
 import Layout from './components/Layout';
+import LoginForm from './components/LoginForm';
+import LoadingSpinner from './components/LoadingSpinner';
+import PremiumGate from './components/PremiumGate';
+
+// Pages
 import Dashboard from './pages/Dashboard';
 import Generate from './pages/Generate';
+import Studio from './pages/Studio';
+import DrumAndBassDemo from './pages/DrumAndBassDemo';
 import StemSplitter from './pages/StemSplitter';
 import LyricsFlow from './pages/LyricsFlow';
 import Harmonies from './pages/Harmonies';
 import Library from './pages/Library';
 import Profile from './pages/Profile';
-import DrumAndBassDemo from './pages/DrumAndBassDemo';
-import LoadingSpinner from './components/LoadingSpinner';
+import Pricing from './pages/Pricing';
+import Admin from './pages/Admin';
+import ProductionReadiness from './pages/ProductionReadiness';
+
+const queryClient = new QueryClient({
+  defaultOptions: {
+    queries: {
+      staleTime: 5 * 60 * 1000, // 5 minutes
+      retry: 1,
+    },
+  },
+});
 
 function AppContent() {
-  const { user, loading } = useAuth();
+  const { user, loading, isAdmin } = useAuth();
 
-  console.log('AppContent rendered, user:', user?.email, 'loading:', loading);
+  console.log('🚀 Beat Addicts AI App loading...', {
+    user: user?.email,
+    loading,
+    isAdmin: isAdmin?.()
+  });
 
-  // Show loading state with timeout fallback
   if (loading) {
     return (
-      <div className="min-h-screen bg-gradient-to-br from-slate-900 via-purple-900/20 to-slate-900 flex items-center justify-center">
-        <div className="text-center space-y-4">
-          <LoadingSpinner size="lg" />
-          <div>
-            <h2 className="text-xl font-semibold text-foreground mb-2">Beat Addicts AI</h2>
-            <p className="text-muted-foreground">Loading your music studio...</p>
-          </div>
-        </div>
+      <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-slate-900 via-purple-900 to-slate-900">
+        <LoadingSpinner />
       </div>
     );
   }
@@ -38,30 +53,53 @@ function AppContent() {
   }
 
   return (
-    <div className="min-h-screen bg-background text-foreground">
-      <Layout>
-        <Routes>
-          <Route path="/" element={<Dashboard />} />
-          <Route path="/generate" element={<Generate />} />
-          <Route path="/demo-dnb" element={<DrumAndBassDemo />} />
-          <Route path="/stem-splitter" element={<StemSplitter />} />
-          <Route path="/lyrics-flow" element={<LyricsFlow />} />
-          <Route path="/harmonies" element={<Harmonies />} />
-          <Route path="/library" element={<Library />} />
-          <Route path="/profile" element={<Profile />} />
-        </Routes>
-      </Layout>
-    </div>
+    <Layout>
+      <Routes>
+        <Route path="/" element={<Dashboard />} />
+        <Route path="/generate" element={<Generate />} />
+        <Route 
+          path="/studio" 
+          element={
+            <PremiumGate feature="Studio" requiredTier="studio">
+              <Studio />
+            </PremiumGate>
+          } 
+        />
+        <Route path="/demo-dnb" element={<DrumAndBassDemo />} />
+        <Route path="/stem-splitter" element={<StemSplitter />} />
+        <Route path="/lyrics-flow" element={<LyricsFlow />} />
+        <Route path="/harmonies" element={<Harmonies />} />
+        <Route path="/library" element={<Library />} />
+        <Route path="/profile" element={<Profile />} />
+        <Route path="/pricing" element={<Pricing />} />
+        
+        {/* Admin Routes */}
+        {isAdmin && isAdmin() && (
+          <>
+            <Route path="/admin" element={<Admin />} />
+            <Route path="/production-readiness" element={<ProductionReadiness />} />
+          </>
+        )}
+        
+        {/* Catch all route */}
+        <Route path="*" element={<Navigate to="/" replace />} />
+      </Routes>
+    </Layout>
   );
 }
 
 function App() {
-  console.log('App component rendered');
-  
   return (
-    <AuthProvider>
-      <AppContent />
-    </AuthProvider>
+    <QueryClientProvider client={queryClient}>
+      <AuthProvider>
+        <Router>
+          <div className="min-h-screen bg-gradient-to-br from-slate-900 via-purple-900 to-slate-900 text-white">
+            <AppContent />
+            <Toaster />
+          </div>
+        </Router>
+      </AuthProvider>
+    </QueryClientProvider>
   );
 }
 
